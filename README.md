@@ -22,7 +22,7 @@ The code in this repository is released under an MIT license. This repository is
 
 # Code contents
 
-All `.Rmd` can be viewed as interactive `.htmls` here: <https://rhreynolds.github.io/LBD-seq-bulk-analyses/>.
+All `.Rmd`s can be viewed as interactive `.html`s here: <https://rhreynolds.github.io/LBD-seq-bulk-analyses/>.
 
 Within this repository you will otherwise find:
 
