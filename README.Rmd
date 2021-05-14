@@ -15,9 +15,6 @@ knitr::opts_chunk$set(
 
 # Background
 
-<!-- badges: start -->
-<!-- badges: end -->
-
 This repository contains analysis code for the publication found [here](https://www.biorxiv.org/content/10.1101/2021.04.22.440800v1), which applied paired bulk-tissue and single-nucleus RNA-sequencing to anterior cingulate cortex samples derived from 28 individuals, including healthy controls and Lewy body disease cases.
 
 Analyses were shared between two groups, thus code herein relates to:
@@ -35,5 +32,19 @@ If you use any of the code or data from this repository, please cite our paper: 
 The code in this repository is released under an MIT license. This repository is distributed in the hope that it will be useful to the wider community, but without any warranty of any kind. Please see the [LICENSE](LICENSE) file for more details. 
 
 # Code contents
+
+All `.Rmd` can be viewed as interactive `.htmls` here: https://rhreynolds.github.io/LBD-seq-bulk-analyses/.
+
+Within this repository you will otherwise find:
+
+| Directory | Description |
+| --------- | --------------------------------------------------------------------------- |
+| [docs](docs) | Contains all `.Rmd`s and their corresponding `.html`s describing analyses performed for this project. These can be view interactively at: https://rhreynolds.github.io/LBD-seq-bulk-analyses/|
+| [man](man) | Contains a figure used in [overview.Rmd](docs/overviews/RNAseq_workflow_tissue.Rmd) |
+| [misc_scripts](misc_scripts) | Contains analysis scripts that were run separate from `.Rmd`s. Each script contains a one-line description and is also referenced in its corresponding `.Rmd`. |
+| [nohup_logs](nohup_logs) | For any scripts that were run outside of an `.Rmd` (e.g. scripts from the [misc_scripts](misc_scripts) directory), a log file was recorded and can be accessed here. |
+| [R](R)| Various functions called in [docs](docs) and [misc_scripts](misc_scripts). |
+
+
 
 
