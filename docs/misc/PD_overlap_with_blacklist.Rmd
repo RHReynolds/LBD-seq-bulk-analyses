@@ -1,0 +1,82 @@
+---
+title: "Overlap of ENCODE blacklist with PD-implicated genes"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: show
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(readxl)
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+# Aim
+
+- Check overlap of blacklisted ENCODE regions with PD-implicated genes.
+
+# File paths for workflow
+
+```{r file-paths}
+
+source(here::here("R", "file_paths.R"))
+
+path_to_folder <- file.path(path_to_raw_data, "misc")
+
+```
+
+
+# PD gene lists
+- For sporadic PD, 2 sets of genes available. Available from [Nalls et al. 2019](https://www.biorxiv.org/content/10.1101/388165v3):
+    - Those implicated by proximity to a PD locus.
+    - Those identified using mendelian randomisation and 4 QTL datasets:  a large meta-analysis of mRNA expression across brain tissues, mRNA expression in the substantia nigra, mRNA expression in blood, and methylation in blood. **Used this list.**
+- Can also use mendelian genes:
+    - Those predicted mendelian genes as reported by Genomics England (i.e. green genes).
+    - Those implicated by family studies: table 1 from [Blauwendraat et al. 2020](https://pubmed.ncbi.nlm.nih.gov/31521533/).
+
+```{r load-genes}
+
+PD_mend <- 
+  read_delim(file.path(path_to_folder, "PD_risk_genes/20191128_GE_ParkinsonDiseaseComplexParkinsonism_greengenes.tsv"),
+                      delim = "\t")
+PD_fam <- 
+  read_delim(file.path(path_to_folder, "PD_risk_genes/Blauwendraat2019_PDgenes.txt"),
+                      delim = "\t")
+PD_MR <- 
+  read_excel(file.path(path_to_folder, "PD_risk_genes/TableS6_Complete_summary_statistics_for_QTL_Mendelian_randomization.xlsx")) %>% 
+  dplyr::filter(`Pass Bonferroni` == "pass")
+
+```
+
+# Check overlap with ENCODE blacklist regions
+
+```{r check-overlaps}
+
+# Load granges with blacklist regions that overlap with ensembl v97 elements and extract gene IDs
+blacklist_genes <- 
+  readRDS(file.path(path_to_folder, "homo_sapiens_v97_BR.rds")) %>% 
+  as_tibble() %>% 
+  .[["gene_name"]] %>% 
+  unique()
+
+# Overlap with Mendelian genes
+PD_mend$`Gene Symbol`[PD_mend$`Gene Symbol` %in% blacklist_genes] %>% unique() %>% sort()
+PD_fam$Gene[PD_fam$Gene %in% blacklist_genes] %>% unique() %>% sort()
+
+# Overlap with sporadic genes (as per mendelian randomisation)
+PD_MR$Gene[PD_MR$Gene %in% blacklist_genes] %>% unique() %>% sort()
+
+```
+
