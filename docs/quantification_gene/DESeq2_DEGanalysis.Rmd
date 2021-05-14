@@ -1,0 +1,1125 @@
+---
+title: "Differential expression analyses"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(biomaRt)
+library(clusterProfiler)
+library(DESeq2)
+library(DEGreport)
+library(DT)
+library(gprofiler2)
+library(ensembldb)
+library(tidyverse)
+library(tximport)
+library(readxl)
+library(qdapTools)
+library(stringr)
+library(UpSetR)
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+> Aim: perform differential gene expression accounting for (i) AoD, RIN, and Sex and (ii) PC axes 1-4, which correlated with AoD, RIN, Sex and the proportions of several cell types. Perform pathway enrichment analyses on results from both correction methods to determine the effect of correcting for cell-type proportion on pathways highlighted.
+
+# File paths for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+
+sample_info <- 
+  read_excel(path = 
+               file.path(
+                 path_to_raw_data,
+                 "sample_details/20201229_MasterFile_SampleInfo.xlsx"
+               ), 
+             sheet = "SampleInfo", 
+             skip = 1) %>% 
+  dplyr::filter(Sample_Type == "Tissue section") %>% 
+  dplyr::select(
+    CaseNo, Disease_Group, Sex, AoO, 
+    AoD, DD, PMI, aSN, TAU, 'thal AB', 'aCG aSN score', 
+    Genetics, RINe_bulkRNA_Tapestation
+  ) %>% 
+  dplyr::rename(
+    sample_id = CaseNo,
+    RIN = RINe_bulkRNA_Tapestation
+  ) %>% 
+  dplyr::mutate(
+    Disease_Group = fct_relevel(Disease_Group,
+                                c("Control", "PD", "PDD", "DLB")),
+    aSN = factor(aSN, levels = c(0,1,2,3,4,5,6)),
+    TAU = factor(TAU, levels = c(0,1,2,3,4,5,6)),
+    `thal AB` = factor(`thal AB`, levels = c(0,1,2,3)),
+    `aCG aSN score` = factor(`aCG aSN score`, levels = c(0,1,2,3))
+  ) %>% 
+  dplyr::inner_join(
+    read_delim(
+      file.path(
+        path_to_results,
+        "deconvolution/scaden/2020Feb/scaden_summary_results.txt"
+      ),
+      delim = "\t")  %>% 
+      dplyr::mutate(
+        Disease_Group = fct_relevel(Disease_Group,
+                                    c("Control", "PD", "PDD", "DLB")),
+        Celltype = str_c(Celltype, "_proportions")
+      ) %>% 
+      dplyr::filter(cells == 1000 & samples == 1000) %>% 
+      dplyr::select(-source, -cells, -samples, -Disease_Group, -Celltype_class) %>% 
+      tidyr::spread(key = Celltype, value = cell_type_proportion)
+  )
+
+```
+
+# Background
+- [Post-quantification QC](Post_quantification_QC.html) has been performed and identified a number of covariates that require correction in any DEG analyses. Covariates include:
+    - RIN
+    - AoD
+    - Sex
+    - Several proportions of different cell-types.
+- Further [analysis](Post_correction_PCA.html) was performed to determine the effect of correcting for only AoD, RIN and Sex or for AoD, RIN, Sex and cell-type proportions. The latter was performed with PC axes that correlated with these covariates, to ensure we maximised the degrees of freedom for any further analyses.
+
+# Loading the data
+```{r loading-data, eval = F}
+
+# Create dataframe of file paths and sample names
+file_df <- tibble(file_paths = list.files(path = file.path(path_to_bulk_seq_data, "salmon_quant"), 
+                                          recursive = T, 
+                                          pattern = "quant.sf",full.names = T),
+                  sample_name = list.files(path = file.path(path_to_bulk_seq_data, "salmon_quant"), 
+                                           recursive = T, 
+                                           pattern = "quant.sf",full.names = T) %>% 
+                    str_replace("/quant.sf", "") %>% 
+                    str_replace("/.*/", "") %>% 
+                    str_replace("_.*", "")) %>% 
+  dplyr::filter(!sample_name == "Undetermined")
+
+files <- file_df$file_paths
+names(files) <- file_df$sample_name
+
+# # Performed only once. Can load from saved location.
+# txdb <- makeTxDbFromEnsembl(organism="Homo sapiens",
+#                     release=97,
+#                     server="ensembldb.ensembl.org")
+# saveDb(txdb,
+#        file = "/data/references/ensembl/txdb_sqlite/v97/Homo_sapiens.GRCh38.97.sqlite")
+
+txdb <- loadDb("/data/references/ensembl/txdb_sqlite/v97/Homo_sapiens.GRCh38.97.sqlite")
+
+tx2gene <- ensembldb::select(txdb, 
+                             keys = keys(txdb, keytype = "TXNAME"), 
+                             columns = c("GENEID", "TXNAME"),
+                             keytype = "TXNAME")
+
+# Loading in salmon data
+txi <- tximport::tximport(files = files,
+                          type = c("salmon"),
+                          tx2gene = tx2gene, 
+                          ignoreTxVersion = TRUE, # splits tx id on the "." character to remove version info for easier matching with tx id in tx2gene
+                          dropInfReps = TRUE)
+
+# Check sample names match in metadata and counts file and are also in the correct order
+all(colnames(txi$abundance) %in% c(sample_info %>% 
+                                          dplyr::filter(sample_id %in% colnames(txi$abundance)) %>% 
+                                     .[["sample_id"]]))
+all(colnames(txi$abundance) == c(sample_info %>% 
+                                          dplyr::filter(sample_id %in% colnames(txi$abundance)) %>% 
+                                     .[["sample_id"]]))
+
+# Create a DESeqDataSet (dds) object
+# Important that rows in the dataframe, 'sample_info', are in the same order as the columns in the count matrix, 'txi'.
+# Include RIN and AoD in design due to post-quant QC -- found to be significantly correlated with gene expression
+dds <- DESeq2::DESeqDataSetFromTximport(txi = txi, 
+                                        colData = sample_info %>% 
+                                          dplyr::filter(sample_id %in% colnames(txi$abundance)) %>% 
+                                          dplyr::select(-Genetics),
+                                        design = ~ Sex + RIN + AoD + Disease_Group)
+
+# Remove blacklist regions from dds
+# Load granges with blacklist regions that overlap with ensembl v97 elements and extract gene IDs
+blacklist_genes <- readRDS(
+  file.path(path_to_raw_data, "misc/homo_sapiens_v97_BR.rds")
+  ) %>% 
+  as_tibble() %>% 
+  .[["gene_id"]] %>% 
+  unique()
+
+dds <- subset(dds, !rownames(dds) %in% blacklist_genes)
+
+saveRDS(
+  dds, 
+  file = 
+    file.path(
+      path_to_results, 
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_design_SexRINAoD.Rds"
+    )
+)
+
+# Raw counts used by DESeq2, but can be useful to have TPM values for visualisation, etc.
+# Remove blacklisted genes
+tpm <- subset(txi$abundance, !rownames(txi$abundance) %in% blacklist_genes)
+saveRDS(
+  tpm, 
+  file= 
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_TPM.Rds")
+)
+
+
+```
+
+# Differential expression accounting for AoD, Sex, and RIN
+- We used DESeq2, which models read counts as following a negative binomial distribution. 
+- Read counts are not continuous (i.e. cannot have half a count aligning to a gene), thus it makes sense to use a distribution that models count data e.g. Poisson distribution.
+- However, the Poisson distribution assumes the the mean and variance are equal, which is not the case for RNA-seq data i.e. genes with low mean expression often have a much higher variance than genes with a high mean expression. The negative binomial distribution includes an extra parameter, which allows modelling of variance.
+- See this blog post for a great explanation: https://bioramble.wordpress.com/2016/01/30/why-sequencing-data-is-modeled-as-negative-binomial/
+- Note to self: the negative binomial distribution is a type of [compound probability distribution](https://en.wikipedia.org/wiki/Compound_probability_distribution), wherein a Poisson distribution is compounded with a rate parameter distributed according to a gamma distribution.
+
+## Performing differential expression
+Design of differential expression analysis will be:
+```{r, echo = F}
+
+dds <- 
+  readRDS(
+    file =
+      file.path(
+        path_to_results,
+        "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_design_SexRINAoD.Rds"
+      )
+    )
+
+# Design formula
+design(dds)
+
+```
+
+```{r, eval = F, class.source='fold-show'}
+
+# Perform differential expression - corrects for library size
+# No need to correct for gene length at this point, as we are comparing the same gene across sample groups
+dds <- 
+  DESeq2::DESeq(dds, test = "Wald")
+
+saveRDS(
+  dds, 
+  file.path(
+    path_to_results,
+    "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_design_SexRINAoD_DEG.Rds"
+  )
+)
+
+```
+
+## Data filtering
+- Error given on originally running `DESeq2::DESeq(dds, test = "Wald")` -- this can be caused by issues with GLM code that can have trouble converging when there is a single row with many 0's or genes with very small counts and little power. A way of resolving this is by filtering prior to differential expression analyses and increasing the maximum iterations used in the Wald test for convergence of the coefficient vector.
+```{r count filtering, class.source='fold-show'}
+
+filter_count <- DEGreport::degFilter(counts = counts(dds),
+                                     metadata = as.data.frame(colData(dds)),
+                                     group = "Disease_Group",
+                                     min = 1, # All samples in group must have more than expr > 0
+                                     minreads = 0) 
+cat("Genes in final count matrix: ", nrow(filter_count))
+
+filter_dds <- dds[rownames(filter_count),] 
+
+```
+
+```{r nbinomWaldTest, eval = F, class.source='fold-show'}
+
+# Exactly the same as using DESeq2::DESeq(filter_dds, test = "Wald"), with addition of iterations run in Wald test.
+# Iterations usually set to 100
+filter_dds <- estimateSizeFactors(filter_dds)
+filter_dds <- estimateDispersions(filter_dds)
+filter_dds <- nbinomWaldTest(filter_dds, maxit=1000)
+
+saveRDS(
+  filter_dds, 
+  file.path(
+    path_to_results,
+    "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_SexRINAoD_DEG.Rds"
+  )
+)
+
+```
+
+### Number of genes detected per group
+- Numbers shown below are for genes detected before and after filtering. Detection of a gene prior to filtering is defined as a count > 0 in at least one sample across a disease group, while detection of a gene after filtering is defined as a count > 0 in all samples across a disease group.
+```{r}
+
+dds <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_design_SexRINAoD_DEG.Rds"
+    )
+  )
+filter_dds <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_SexRINAoD_DEG.Rds"
+    )
+  )
+
+genes_detected <- 
+  dds %>% 
+  assay() %>% # Access count data
+  as_tibble() %>% 
+  dplyr::mutate(gene_id = rownames(assay(dds))) %>% 
+  gather(key = sample_id, value = counts, -gene_id) %>% 
+  dplyr::filter(counts > 0) %>% 
+  dplyr::inner_join(colData(dds) %>% 
+                      as_tibble(), by = "sample_id") %>% 
+  dplyr::distinct(Disease_Group, gene_id) %>% 
+  dplyr::group_by(Disease_Group) %>% 
+  dplyr::summarise(n_genes_detected = n()) %>% 
+  dplyr::inner_join(  filter_dds %>% 
+                        assay() %>% # Access count data
+                        as_tibble() %>% 
+                        dplyr::mutate(gene_id = rownames(assay(filter_dds))) %>% 
+                        gather(key = sample_id, value = counts, -gene_id) %>% 
+                        dplyr::filter(counts > 0) %>% 
+                        dplyr::inner_join(colData(filter_dds) %>% 
+                                            as_tibble(), by = "sample_id") %>% 
+                        dplyr::distinct(Disease_Group, gene_id) %>% 
+                        dplyr::group_by(Disease_Group) %>% 
+                        dplyr::summarise(n_genes_detected_after_filtering = n()))
+
+genes_detected
+
+```
+
+
+## Gene-dispersion estimates
+- For useful discussions, see: https://github.com/hbctraining/DGE_workshop/blob/master/lessons/04_DGE_DESeq2_analysis.md & https://github.com/hbctraining/DGE_workshop/blob/master/lessons/05_DGE_DESeq2_analysis2.md
+- DESeq2 dispersion estimates = inversely related to the mean and directly related to variance i.e. dispersion is higher for small mean counts and lower for large mean counts + dispersion estimate for gene with same mean will differ based only on variance. *Thus, dispersion estimate reflect variance in gene expression for a given mean value.*
+- As opposed to estimating variance for each gene across replicates in a group, DESeq2 shares information across genes to generate more accurate estimates of variation based on the mean expression level of the gene using a method called 'shrinkage'. DESeq2 assumes that genes with similar expression levels have similar dispersion.
+- Upon estimating gene dispersion, DESeq2 fits a model and then shrinks gene-wise dispersion estimates towards this fitted model. Shrinkage depends on:
+    - how close gene dispersions are from the fitted curve
+    - sample size (more samples = less shrinkage)
+- Dispersion estimates that are slightly above the curve are also shrunk toward the curve for better dispersion estimation; however, genes with extremely high dispersion values are not. This is due to the likelihood that the gene does not follow the modeling assumptions and has higher variability than others for biological or technical reasons (shown by blue circles on curve below)
+- We can plot the dispersion estimates, the model and results following shrinkage. Data is expected to generally scatter around the curve, with the dispersion decreasing with increasing mean expression levels.
+- For unfiltered data, dispersion does appear to decrease somewhat with increasing mean expression levels, although perhaps not as much as might be expected. Furthermore, several genes with very high dispersion levels. 
+- By filtering we see that the number of genes with very low expression has been reduced. Likewise, the number of genes with high dispersion levels has decreased i.e. we have potentially removed some noise in the data.
+
+```{r, class.source='fold-show'}
+
+DESeq2::plotDispEsts(dds)
+
+```
+
+```{r plot-disp-est, echo = F, fig.cap= "Plot of gene-wise dispersion estimates for (top) unfiltered and (bottom) filtered data. Each black dot is a gene with an associated mean expression level and maximum likelihood estimate of dispersion. The red line plots the estimate for the expected dispersion value for genes of a given mean expresion level. Blue dots represent final 'shrunken' values. Black dots surrounded by blue circles have not had their values shrunken. This is due to its high dispersion value. Genes with high dispersion values do not follow the modeling assumptions and may have higher variability than others for biological or technical reasons. Shrinking these values could result in false positives."}
+
+DESeq2::plotDispEsts(filter_dds)
+
+```
+
+## Extracting results and log2fold change shrinkage
+- To generate more accurate log2 foldchange estimates, DESeq2 allows for the shrinkage of the LFC estimates toward zero when the information for a gene is low, which could include low counts and/or high dispersion values.
+- As with the shrinkage of dispersion estimates, LFC shrinkage uses information from all genes to generate more accurate estimates. Specifically, the distribution of LFC estimates for all genes is used (as a prior) to shrink the LFC estimates of genes with little information or high dispersion toward more likely (lower) LFC estimates.
+- **Shrinking the log2 fold changes will not change the total number of genes that are identified as significantly differentially expressed.** The shrinkage of fold change is to help with downstream assessment of results. For example, if we want to subset your significant genes based on fold change for further evaluation, you may want to use shruken values. 
+- **Note on naming convention**: results will be extracted with the name `comparison[1]_vs_comparison[2]`, where `comparison[1]` is the baseline/reference value and `comparison[2]` is in reference to the baseline value i.e. you will get log2FC(comparison[2]/comparison[1])
+```{r extracting-results, eval = F}
+
+# Collect all results and save as RDS object
+# Requires looping across and extracting for each comparison
+extract_results_dds <- function(dds, sample_info, group_column_name){
+
+  # Create vector of groups
+  groups <- sample_info %>%
+    .[[group_column_name]] %>%
+    unique() %>% 
+    sort() %>% 
+    as.character()
+
+  # Create dataframe of comparisons
+  comparisons <-
+    combn(x = groups,
+          m = 2) %>%
+    t() %>%
+    as_tibble()
+
+  # Loop through comparisons and for each extract results
+  for(i in 1:nrow(comparisons)){
+
+    # Filter for comparisons
+    comparison <- comparisons[i,] %>%
+      purrr::as_vector()
+    
+    # Contrast in this order will result in logFC(comparison[2]/comparison[1])
+    contrast <- c(group_column_name, comparison[2], comparison[1])
+    
+    print(contrast)
+    
+    # Unshrunken and shrunk results
+    res_unshrunken <- results(dds, contrast = contrast, alpha = 0.05)
+    res <- lfcShrink(dds, contrast = contrast, res = res_unshrunken, type = "normal") 
+    
+    # All genes in tibble format
+    all_genes <- res_unshrunken %>% 
+      data.frame() %>% 
+      rownames_to_column(var="gene") %>% 
+      as_tibble() %>% 
+      inner_join(res %>% 
+                   data.frame() %>% 
+                   rownames_to_column(var="gene") %>% 
+                   as_tibble() %>% 
+                   dplyr::rename(log2FoldChange_shrunk = log2FoldChange,
+                                 lfcSE_shrunk = lfcSE,
+                                 pvalue_shrunk = pvalue,
+                                 padj_shrunk = padj)) %>% 
+      dplyr::select(gene, baseMean, log2FoldChange, lfcSE, pvalue, padj, everything(), -stat) 
+    
+    # Extract genes with FDR < 0.05
+    significant_genes <- all_genes %>% 
+      dplyr::filter(padj < 0.05)
+    
+    results <- list(res_unshrunken, res, all_genes, significant_genes)
+    names(results) <- c("dds_results_unshrunken", "dds_results_lfc", "tibble_all_genes", "tibble_significant_genes")
+    
+    if(i == 1){
+      
+      all_results <- list(results)
+      list_name <- str_c(comparison[1], "_vs_", comparison[2])
+      
+    } else {
+      
+      all_results <- c(all_results, list(results))
+      list_name <- c(list_name, str_c(comparison[1], "_vs_", comparison[2]))
+      
+      
+    }
+
+  }
+  
+  names(all_results) <- list_name
+  return(all_results)
+
+}
+
+results <- extract_results_dds(dds = filter_dds, sample_info = sample_info, group_column_name = "Disease_Group")
+
+# Save results as .Rds
+saveRDS(
+  results, 
+  file = 
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DEG_lists_design_SexRINAoD.Rds"
+    )
+  )
+
+```
+
+## Significant genes
+```{r summary-of-significant-results, class.source='fold-show'}
+
+source(here::here("R", "biomart_df.R"))
+results <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DEG_lists_design_SexRINAoD.Rds"
+    )
+  )
+
+significant_genes <- results %>% 
+  lapply(., function(x){
+    x$tibble_significant_genes %>% 
+      dplyr::mutate(direction_of_effect = ifelse(log2FoldChange < 0, "downregulated", "upregulated")) 
+  }) %>% 
+  qdapTools::list_df2df(., col = "Comparison")  %>% 
+  biomart_df(columnToFilter = "gene", 
+             mart = 38, 
+             ensembl_version = "jul2019.archive.ensembl.org", 
+             attributes = c("ensembl_gene_id", "hgnc_symbol"), 
+             filter = "ensembl_gene_id") %>% 
+  dplyr::select(Comparison, direction_of_effect, gene, hgnc_symbol, everything())
+
+covar_count <- significant_genes %>% 
+  dplyr::group_by(Comparison, direction_of_effect) %>% 
+  summarise(n = n()) %>% 
+  spread(key = direction_of_effect, value = n)
+
+covar_count
+
+```
+
+- Looking at the number of significant genes, there are a few observations to be made:
+    - There is a definite bias toward Control_vs_DLB, with very few differentially expressed genes (DEGs) identified between other conditions. A similar bias was observed for differential splicing analyses with Leafcutter.
+- P-value histograms are a good way of visualising large numbers of tests, as performed help us diagnose potential issues with an experiment. If we look at the distribution of p-values (unadjusted), most comparisons in this experiment have a relatively uniform distribution of p-values, with a slight overabundance of very low p-values. Based on a paper by [Breheny et al.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6164648/) this is suggestive of an insufficiently powered experiment (unsurprising given cohort numbers).
+
+```{r p-value-histograms, echo = F, fig.cap= "Histogram of unadjusted p-values across all tests. Note that 28692 genes were tested following filtering of the counts matrix to ensure that included genes had a count > 0 in all samples within a group."}
+all_genes <- 
+  results %>% 
+  lapply(., function(x){x$tibble_all_genes}) %>% 
+  qdapTools::list_df2df(., col = "Comparison")
+
+ggplot(data = all_genes %>% 
+         drop_na(pvalue) %>% 
+         dplyr::filter(baseMean > 1), aes(x = pvalue)) + 
+  geom_histogram(binwidth = 0.05,
+                 boundary = 1,
+                 colour = "black", 
+                 fill = "white") +
+  facet_wrap(~ Comparison, 
+             nrow = 3) +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.05)) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## Overlap between significant genes
+```{r upsetR, fig.cap= "Overlap between differentially expressed genes identified in pairwise comparisons. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+
+genes_list <- 
+  results %>% 
+  lapply(., function(x){
+    x$tibble_significant_genes %>% .[["gene"]] %>% unique()
+    })
+
+upset(fromList(genes_list), sets = names(genes_list), keep.order = TRUE, nintersects = 25, order.by = "freq")
+
+```
+
+## Pathway enrichment analysis
+- Filtered to remove very broad terms i.e. term sizes > 2000 and <= 20
+```{r g-Profiler, eval = F, class.source='fold-show'}
+
+# all tested genes as background
+all_genes <- results$Control_vs_DLB$tibble_all_genes$gene
+
+# Split significant genes by up and downregulated genes
+gprofiler_list <- setNames(significant_genes %>% 
+                             # arrange by adjusted p-value
+                             dplyr::arrange(Comparison, direction_of_effect, padj) %>% 
+                             dplyr::group_by(Comparison, direction_of_effect) %>% 
+                             dplyr::group_split(), 
+                           significant_genes %>% 
+                             dplyr::arrange(Comparison, direction_of_effect, padj) %>%
+                             tidyr::unite(col = "list_name", c("Comparison", "direction_of_effect"), sep = ":", remove = FALSE) %>% 
+                             .[["list_name"]] %>% 
+                             unique())
+
+# Run once as ordered query
+gprofiler_results_list <- lapply(gprofiler_list, function(x){
+  x %>% 
+    .[["gene"]] %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "gSCS", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"), 
+       ordered_query = TRUE,
+       evcodes = TRUE)})
+
+saveRDS(
+  gprofiler_results_list, 
+  file.path(
+    path_to_results,
+    "Salmon_quant/bulk_tissue/gprofiler/PD_tissue_polyA_DEG_design_SexRINAoD_gprofiler.Rds"
+  )
+)
+
+```
+
+```{r g-Profiler-results, echo = F, eval = T}
+
+gprofiler_results_list <- 
+  readRDS(
+    file.path(
+    path_to_results,
+    "Salmon_quant/bulk_tissue/gprofiler/PD_tissue_polyA_DEG_design_SexRINAoD_gprofiler.Rds"
+  )
+)
+
+# Added some filtering to remove broad terms
+gprofiler_df <- 
+  gprofiler_results_list %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  tidyr::separate(col = "comparison", into = c("comparison", "direction_of_effect"), sep = ":") %>% 
+  dplyr::select(comparison, direction_of_effect, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>% 
+  dplyr::arrange(comparison, direction_of_effect, source, p_value)
+
+covar_gprof <- 
+  gprofiler_df %>%
+  dplyr::group_by(comparison, direction_of_effect) %>%
+  dplyr::summarise(n_enriched_pathways = n())
+
+covar_gprof
+
+gprofiler_df %>% 
+  dplyr::select(-evidence_codes, -intersection) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- gProfiler outputs a number of columns, a few of which are not entirely self-explanatory, including:
+    - precision: this is the proportion of genes in the input gene list that can be assigned this term i.e. overlap.size/query.size
+    - recall: this is the proportion of genes in the input list that overlap with the term i.e. overlap.size/term.size
+    - relative depth: the term's depth in "local" hierarchy
+- When using `ordered_query = TRUE`, the hypergeometric testing is performed for each possible prefix of the list starting from the first gene and adding next genes one by one. The smallest enrichment P-value is reported for each of the terms along with corresponding gene list length. For different terms this length can vary, especially as the broader terms can be enriched for larger lists only.
+- Other comparisons:
+    - Control vs DLB
+        - Downregulated
+            - GO terms related to cilium, cell projection, cilium assembly
+            - KEGG terms related to amino acid metabolism
+        - Upregulated
+            - GO terms related to biological processes are very immune response oriented (e.g. “response to stimulus”, “regulation of immune response”), but also see locomotion terms, adhesion terms, terms related to blood vessel development and finally, to muscle contraction  
+            - KEGG highlights leukocyte transendothelial migration, adhesion terms, muscle contraction
+            - REACTOME terms relate to immune processes (including TLR4 cascade), muscle contraction, ECM organisation,
+    - Control vs PD
+        - Downregulated
+            - GO terms related to phagosome & MHC class II antigen presentation
+        - Upregulated
+            - Terms relating to ion channels
+    - Control vs PDD
+        - Upregulated
+            - GO BP terms relate to immune response and immune-related migration
+            - REACTOME also highlights immune related terms (“innate immune system”)
+    - PDD vs DLB
+        - Upregulated
+            - GO BP, GO CC and REACTOME terms relate to muscle systems? (“muscle contraction”, “muscle tissue development”, “regulation of muscle contraction”, “contractile fiber”, “sarcomere”)
+    - PD vs DLB
+        - Upregulated
+            - Terms relating to immune processes and muscle cell differentiation
+            
+## Overlap with PD genes
+- Mendelian PD:
+    - Predicted mendelian genes as reported by Genomics England (i.e. green genes)
+- Sporadic PD:
+    - Used those genes that have been identified using mendelian randomisation and 4 QTL datasets:  a large meta-analysis of mRNA expression across brain tissues, mRNA expression in the substantia nigra, mRNA expression in blood, and methylation in blood. 
+
+```{r, class.source='fold-show'}
+
+# Read in PD genes
+PD_genes <- 
+  setNames(vector(mode = "list", length = 2),
+                     c("mendelian", "sporadic"))
+
+PD_genes$mendelian <- 
+  read_delim(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/20191128_GE_ParkinsonDiseaseComplexParkinsonism_greengenes.tsv"
+    ),
+    delim = "\t"
+  ) %>% 
+  dplyr::rename(Gene = `Gene Symbol`)
+PD_genes$sporadic <- 
+  read_excel(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/TableS6_Complete_summary_statistics_for_QTL_Mendelian_randomization.xlsx"
+    )
+  ) %>% 
+  dplyr::filter(`Pass Bonferroni` == "pass")
+
+# Note that the following genes in the mendelian list are also present within the sporadic MR list
+PD_genes$mendelian$Gene[PD_genes$mendelian$Gene %in% PD_genes$sporadic$Gene]
+
+# Differentially expressed genes overlapping PD genes
+PD_genes %>% 
+  lapply(., function(x){
+    
+    significant_genes %>%  
+      dplyr::filter(hgnc_symbol %in% x$Gene) %>% 
+      .[["hgnc_symbol"]] %>%
+      unique() %>%
+      sort()
+
+  })
+
+significant_genes %>% 
+  dplyr::filter(hgnc_symbol %in% unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene))) %>% 
+  dplyr::arrange(hgnc_symbol) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- GBA found to be downregulated in Control_vs_DLB -- a few qPCR-based studies have found that GBA expression decreases in cortical tissues for DLB (https://www.ncbi.nlm.nih.gov/pubmed/29896411, https://molecularneurodegeneration.biomedcentral.com/articles/10.1186/s13024-015-0010-2).
+    - Also, checked results of [SRP058181](https://bmcmedgenomics.biomedcentral.com/articles/10.1186/s12920-016-0164-y), the largest Control vs PD RNA-seq study, GBA was not found differentially expressed.
+- Interestingly, GBA and ITGA8 also found to be differentially spliced (post-correction for cell-type abundances).
+    - GBA differentially spliced in following comparisons: Control_vs_DLB and PDD_vs_DLB. Thus there is an overlap in the Control_vs_DLB pre-deconvolution expression and post-deconvolution splicing.
+    - ITGA8 found differentially spliced in PD_vs_DLB and PDD_vs_DLB. Thus there is an overlap in the PDD_vs_DLB pre-deconvolution expression and post-deconvolution splicing.
+
+## Identifying patterns across disease groups
+- An alternative to pair-wise comparisons is to analyse all levels of a factor at once, which is possible with the likelihood ratio test (LRT).
+- In this, the full model is compared to a reduced model to identify significant genes. P-values are determined by the difference in deviance between the 'full' and 'reduced' model formula, as opposed to log2 fold changes (as with the Wald test).
+- While the LRT is a test of significance for differences of any level of the factor, one should not expect it to be exactly equal to the union of sets of genes using Wald tests. Do expect a majority overlap.
+
+```{r LRT, eval = F, class.source='fold-show'}
+
+# Using likelihood ratio test (i.e. goodness of fit)
+# Number of DEgenes much higher than with Wald test
+# But this also because we are analysing all levels of a factor at once, similar to ANOVA.
+# P-values determined by difference in deviance between full and reduced model (not log2 fold changes)
+# See: https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
+dds_LRT <- DESeq(filter_dds, test = "LRT", reduced = ~Sex + RIN + AoD)
+
+saveRDS(
+  dds_LRT, 
+  file = 
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_SexRINAoD_LRT.Rds"
+    )
+) 
+```
+
+```{r LRT-proportion, class.source='fold-show'}
+
+dds_LRT <- 
+  readRDS(
+  file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_SexRINAoD_LRT.Rds"
+    )
+)
+
+# Design formula
+design(dds_LRT)
+
+res_LRT <- results(dds_LRT)
+
+sig_res_LRT <- res_LRT %>%
+  data.frame() %>%
+  rownames_to_column(var="gene") %>% 
+  as_tibble() %>% 
+  dplyr::filter(padj < 0.05)
+
+# Proportion of genes that overlap between pairwise comparisons and LRT
+(c(significant_genes$gene %in% sig_res_LRT$gene)[c(significant_genes$gene %in% sig_res_LRT$gene) == TRUE] %>% length())/nrow(significant_genes)
+
+```
+
+- We can use the `degPatterns` function from the 'DEGreport' package to determine sets of genes that exhibit similar expression patterns across sample groups. The `degPatterns` tool uses a hierarchical clustering approach based on pair-wise correlations, then cuts the hierarchical tree to generate groups of genes with similar expression profiles. The tool cuts the tree in a way to optimize the diversity of the clusters, such that the variability inter-cluster > the variability intra-cluster.
+
+```{r gene-clusters, class.source='fold-show',fig.height=8}
+
+# Identify gene clusters exhibiting particular patterns across samples, using the `degPatterns` function from the 'DEGreport' package to show gene clusters across disease groups
+vsd <- DESeq2::vst(dds_LRT, blind = FALSE)
+vsd_mat <- assay(vsd)
+
+# Filter only for significant genes 
+cluster_rlog <- vsd_mat[sig_res_LRT$gene,]
+clusters <- DEGreport::degPatterns(ma = cluster_rlog, metadata = colData(dds_LRT), time = "Disease_Group", col=NULL, minc = 14)
+
+# saveRDS(clusters, file.path(path_to_results, "Salmon_quant/bulk_tissue/DEGreport_LRT_SexRINAoD_clusters.Rds"))
+
+```
+
+```{r, echo = F}
+
+clusters_df <- clusters$df %>%
+  as_tibble() %>%
+  biomart_df(columnToFilter = "genes", 
+             mart = 38, 
+             ensembl_version = "jul2019.archive.ensembl.org", 
+             attributes = c("ensembl_gene_id", "hgnc_symbol"),
+             filter = "ensembl_gene_id") %>%
+  dplyr::select(genes, hgnc_symbol, cluster) %>% 
+  dplyr::arrange(cluster, hgnc_symbol) 
+
+clusters_df %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+## Pathway enrichment analysis of clusters
+- Filtered to remove any term sizes > 2000 and < 20
+```{r}
+
+all_genes <- results$Control_vs_DLB$tibble_all_genes$gene
+
+gprofiler_clusters <- setNames(clusters_df %>%
+                                 dplyr::group_split(cluster),
+                               clusters_df %>%
+                                 dplyr::mutate(cluster = str_c("cluster_", cluster)) %>% 
+                                 dplyr::arrange(cluster) %>% 
+                                 .[["cluster"]] %>% 
+                                 unique()
+                                 ) %>% 
+  lapply(., function(x){x %>% .[["genes"]] %>% unique()})
+
+gprofiler_clusters_results <- gprofiler_clusters %>% 
+  lapply(., function(x){
+    y <- x %>% 
+      gost(., organism = "hsapiens",
+           correction_method= "gSCS", significant = TRUE,
+           user_threshold = 0.05,
+           custom_bg= all_genes,
+           sources = c("GO", "REAC", "KEGG", "OMIM"))
+    
+    y$result %>% 
+      as_tibble()
+    
+  })
+
+gprofiler_clusters_results %>% 
+  qdapTools::list_df2df(col = "list_name") %>% 
+  dplyr::select(list_name, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>% 
+  dplyr::arrange(list_name, source, p_value) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap') 
+  
+  
+
+```
+
+- Cluster 1: mostly immune-related terms and cell motility
+- Cluster 2: apoptosis
+- Cluster 3: muscle-related terms
+- Cluster 4: glycan biosynthesis?
+- Cluster 5: immune terms
+
+# Differential expression accounting for PC axes 1-4
+- Added PC axes to metadata of dds and changed design to include PC axes, as opposed to AoD, Sex and RIN.
+- Similarly increased number of maximum iterations used in the Wald test for convergence of the coefficient vector (as done with correction for AoD, Sex and RIN)
+```{r, eval = F, class.source='fold-show',fig.height=8}
+
+# Transform data and perform PCA to extract relevant PC axes
+vsd <- vst(object = filter_dds, 
+           # not blind to experimental design, as recommended in https://www.bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#blind-dispersion-estimation
+           blind = FALSE 
+           )
+
+pca_vsd <- prcomp(t(assay(vsd)))
+
+# Extract coordinates of individuals on principle components 1-4
+PC_axes <- pca_vsd$x[, str_c("PC", 1:4)] %>% 
+  as.data.frame()
+
+# Check that rows in PC axes match order of rows in colData
+all(rownames(colData(filter_dds)) == rownames(PC_axes)) # TRUE
+
+# Include PC axes in filter_dds colData & design
+colData(filter_dds) <- cbind(colData(filter_dds), PC_axes)
+design(filter_dds) <- ~ PC1 + PC2 + PC3 + PC4 + Disease_Group
+
+# Differential expression
+filter_dds <- estimateSizeFactors(filter_dds)
+filter_dds <- estimateDispersions(filter_dds)
+filter_dds <- nbinomWaldTest(filter_dds, maxit=1000)
+
+saveRDS(
+  filter_dds, 
+  file = 
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_PCaxes_DEG.Rds"
+    )
+  )
+
+```
+
+```{r, echo = F, eval = T}
+
+filter_dds <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_PCaxes_DEG.Rds"
+    )
+  )
+design(filter_dds)
+
+```
+
+## Extracting results and log2fold change shrinkage
+- **Note on naming convention**: results will be extracted with the name `comparison[1]_vs_comparison[2]`, where `comparison[1]` is the baseline/reference value and `comparison[2]` is in reference to the baseline value i.e. you will get log2FC(comparison[2]/comparison[1])
+```{r extracting-results-PCaxes, eval = F}
+
+results <- extract_results_dds(dds = filter_dds, sample_info = sample_info, group_column_name = "Disease_Group")
+
+# Save results as .Rds
+saveRDS(
+  results, 
+  file = 
+        file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DEG_lists_design_PCaxes.Rds"
+    )
+  )
+
+```
+
+## Significant genes
+```{r summary-of-significant-results-PCaxes, class.source='fold-show'}
+
+results <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DEG_lists_design_PCaxes.Rds"
+    )
+  )
+
+significant_genes <- results %>% 
+  lapply(., function(x){
+    x$tibble_significant_genes %>% 
+      dplyr::mutate(direction_of_effect = ifelse(log2FoldChange < 0, "downregulated", "upregulated")) 
+  }) %>% 
+  qdapTools::list_df2df(., col = "Comparison") %>% 
+  biomart_df(columnToFilter = "gene", 
+             mart = 38, 
+             ensembl_version = "jul2019.archive.ensembl.org", 
+             attributes = c("ensembl_gene_id", "hgnc_symbol"), 
+             filter = "ensembl_gene_id") %>% 
+  dplyr::select(Comparison, direction_of_effect, gene, hgnc_symbol, everything())
+
+PC_count <- significant_genes %>% 
+  dplyr::group_by(Comparison, direction_of_effect) %>% 
+  summarise(n = n()) %>% 
+  spread(key = direction_of_effect, value = n)
+
+PC_count
+
+```
+- As there are so few differentially expressed genes, see results listed below:
+
+```{r, eval = T}
+
+significant_genes %>% 
+  dplyr::arrange(Comparison) %>% 
+  dplyr::select(Comparison, direction_of_effect, gene, hgnc_symbol, log2FoldChange_shrunk, lfcSE_shrunk, padj) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+## Overlap between significant genes
+```{r upsetR-PCaxes, echo = F, fig.cap= "Overlap between differentially expressed genes identified in pairwise comparisons. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+
+genes_list <- 
+  results %>% 
+  lapply(., function(x){
+    # Extract in order of significance
+    x$tibble_significant_genes %>% arrange(padj) %>% .[["gene"]] %>% unique()
+    })
+
+upset(fromList(genes_list), sets = names(genes_list), keep.order = TRUE, nintersects = 25, order.by = "freq")
+
+```
+
+## Pathway enrichment analysis
+- Given that up and downregulated lists are so small individually, chose to join the lists together to see if gprofiler returns any results.
+- Removed term sizes <= 20 and > 2000.
+- Outputted terms are somewhat meaningless in that only 1 differentially expressed gene (HLA-B), which unsurprisingly drives an enrichment in autoimmune terms
+```{r g-Profiler-PCaxes, eval = F, class.source='fold-show'}
+
+# all tested genes as background
+all_genes <- results$Control_vs_DLB$tibble_all_genes$gene
+
+# Run once
+gprofiler_results_list <- lapply(genes_list, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "gSCS", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       ordered_query = TRUE,
+       evcodes = TRUE)})
+
+saveRDS(
+  gprofiler_results_list, 
+  file.path(
+    path_to_results,
+    "Salmon_quant/bulk_tissue/gprofiler/PD_tissue_polyA_DEG_design_PCaxes_gprofiler.Rds"
+  )
+)
+
+```
+
+```{r g-Profiler-results-PCaxes, echo = F, eval = T}
+
+gprofiler_results_list <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/gprofiler/PD_tissue_polyA_DEG_design_PCaxes_gprofiler.Rds"
+    )
+  )
+
+gprofiler_df <- gprofiler_results_list %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>% 
+  dplyr::arrange(comparison, source, p_value)
+
+PC_gprof <- gprofiler_df %>%
+  dplyr::group_by(comparison) %>%
+  dplyr::summarise(n_enriched_pathways = n())
+
+gprofiler_df %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+## Overlap with PD genes
+- Same lists as used pre-correction for cell-type abundances.
+- No differentially expressed genes found to overlap PD-implicated genes.
+
+```{r, class.source='fold-show'}
+
+# Differentially expressed genes overlapping PD genes
+PD_genes %>% 
+  lapply(., function(x){
+    
+    significant_genes %>%  
+      dplyr::filter(hgnc_symbol %in% x$Gene) %>% 
+      .[["hgnc_symbol"]] %>% 
+      unique() %>% 
+      unlist() %>% 
+      sort()
+    
+    
+  })
+
+```
+
+## Identifying patterns across disease groups
+- We use the LRT model to compare the full model to a reduced model containing PC axes 1-4.
+- We can use the `degPatterns` function from the 'DEGreport' package to determine sets of genes that exhibit similar expression patterns across sample groups. 
+```{r LRT-PCaxes, eval = F, class.source='fold-show'}
+
+# Using likelihood ratio test (i.e. goodness of fit)
+# Number of DEgenes much higher than with Wald test
+# But this also because we are analysing all levels of a factor at once, similar to ANOVA.
+# P-values determined by difference in deviance between full and reduced model (not log2 fold changes)
+# See: https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
+dds_LRT <- DESeq(filter_dds, test = "LRT", reduced = ~PC1 + PC2 + PC3 + PC4)
+
+saveRDS(
+  dds_LRT, 
+  file = 
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_PCaxes_LRT.Rds"
+    )
+  ) 
+```
+
+```{r LRT-proportion-PCaxes, class.source='fold-show'}
+
+dds_LRT <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_PCaxes_LRT.Rds"
+    )    
+  )
+
+# Design formula
+design(dds_LRT)
+
+res_LRT <- results(dds_LRT)
+
+sig_res_LRT <- res_LRT %>%
+  as_tibble(rownames = "gene") %>% 
+  dplyr::filter(padj < 0.05)
+
+# Identify gene clusters exhibiting particular patterns across samples, using the `degPatterns` function from the 'DEGreport' package to show gene clusters across disease groups
+vsd <- DESeq2::vst(dds_LRT, blind = FALSE)
+vsd_mat <- assay(vsd)
+
+# Filter only for significant genes 
+cluster_rlog <- vsd_mat[sig_res_LRT$gene,]
+clusters <- DEGreport::degPatterns(cluster_rlog, metadata = colData(dds_LRT), time = "Disease_Group", col=NULL, minc = 14)
+
+# saveRDS(clusters, file.path(path_to_results, "Salmon_quant/bulk_tissue/DEGreport_LRT_PCaxes_clusters.Rds"))
+
+``` 
+
+```{r, echo = F}
+
+clusters_df <- clusters$df %>%
+  as_tibble() %>%
+  biomart_df(columnToFilter = "genes", 
+             mart = 38, 
+             ensembl_version = "jul2019.archive.ensembl.org", 
+             attributes = c("ensembl_gene_id", "hgnc_symbol"),
+             filter = "ensembl_gene_id") %>%
+  dplyr::select(genes, hgnc_symbol, cluster) %>% 
+  dplyr::arrange(hgnc_symbol) 
+
+clusters_df %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+## Gprofiler of clusters
+```{r}
+
+gprofiler_cluster <- clusters_df %>%
+  .[["genes"]] %>% 
+  gost(., organism = "hsapiens",
+       correction_method= "gSCS", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"))
+
+gprofiler_cluster$result 
+
+```
+
+# Conclusions
+Correcting by PC axes 1-4 greatly reduces the number of differentially expressed genes, and likewise pathways, suggesting that many of the differential genes and pathways identified when only corrected by AoD, Sex, RIN relate to the changes observed in [cell-type proportions](../deconvolution/deconvolution_scaden.html).
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

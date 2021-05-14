@@ -1,0 +1,149 @@
+---
+title: "Gene-level quantification: bulk-tissue samples"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: show
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(rtracklayer)
+
+knitr::opts_chunk$set(echo = F, warning = F, message= F)
+```
+
+> Aim: to quantify reads across aligned samples.
+
+# Background
+- Quantified reads will be used for:
+    1. Other QC, including:
+        a. Sex checks
+        b. PCA analysis for outliers
+    2. Deconvolution
+    3. Gene-level differential expression analyses
+- [`Salmon`](https://www.nature.com/articles/nmeth.4197) is a better choice re. quantification (compared to `HTSeq-count` traditionally used in the `DESeq2` package) as it is faster (due to quasi-mapping) and corrects for a lot of biases in data, including:
+        - Sequence-specific biases
+        - GC-biases
+        - Positional biases
+        
+# Running Salmon
+- Using v0.14.1
+- While Salmon can be run using previously aligned .bam files, it requires that these were aligned directly to the transcriptome rather than to the genome. There are ways of converting genome-aligned .bam files; however, given the speed of Salmon mapping, opted to perform quasi-mapping and quantification (otherwise known as mapping-based mode in Salmon documentation - https://salmon.readthedocs.io/en/latest/index.html).
+- This can be performed in two steps:
+    1. Create a salmon index for the transcriptome
+    2. Quantification
+
+## Creating a salmon index
+To create a *decoy-aware* salmon index requires:
+  - genome fasta
+  - transcriptome fasta
+  - annotation file (GTF)
+A decoy-aware transcriptome is recomended for selective alignment in Salmon from release 0.13.0 onwards.  When a sequenced fragment originates from an unannotated genomic locus bearing sequence-similarity to an annotated transcript, it can be falsely mapped to the annotated transcript since the relevant genomic sequence is not available to the method. Using of MashMap, such sequence-similar decoy regions can be identified and extracted from the genome. The normal Salmon index is then augmented with these decoy sequences, which are handled in a special manner during mapping and alignment scoring, leading to a reduction in false mappings of such a nature.
+  
+1. Transcriptome fasta was created by concatenating the cDNA and ncRNA fastas from ensembl v97. 
+```{bash, eval = F, echo = T}
+cd /data/references/fasta/transcriptome/
+
+wget ftp://ftp.ensembl.org/pub/release-97/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-97/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz
+
+# Renamed to include version number
+gunzip Homo_sapiens.GRCh38.97.cdna.all.fa.gz
+gunzip Homo_sapiens.GRCh38.97.ncrna.fa.gz
+
+# Concatenated to one file
+cat Homo_sapiens.GRCh38.97.cdna.all.fa Homo_sapiens.GRCh38.97.ncrna.fa > Homo_sapiens.GRCh38.97.cdna.all.ncrna.fa
+
+# Used wc -l on all three files to check number of lines in concatenate file = number of lines in cdna + ncrna
+
+```
+2. Creating a decoy transcriptome file. 
+```{bash, eval = F, echo = T}
+cd /tools/salmon/salmonReferences/ensembl_v97
+
+bash /tools/salmon/SalmonTools/scripts/generateDecoyTranscriptome.sh \
+-j 10 \ 
+-b /tools/bedtools2/bin/bedtools \
+-m /tools/MashMap/MashMap-2.0/mashmap \
+-a /data/references/ensembl/gtf_gff3/v97/Homo_sapiens.GRCh38.97.gtf \
+-g /data/references/fasta/Homo_sapiens.GRCh38.97.dna.primary_assembly.fa \
+-t /data/references/fasta/transcriptome/Homo_sapiens.GRCh38.97.cdna.all.ncrna.fa \
+-o /tools/salmon/salmonReferences/ensembl_v97/
+
+```
+3. Generating the decoy-aware salmon index.
+```{bash, eval = F, echo = T}
+/tools/salmon/salmon-latest_linux_x86_64/bin/salmon index \
+--transcripts /tools/salmon/salmonReferences/ensembl_v97/gentrome.fa \
+--index /tools/salmon/salmonReferences/ensembl_v97/Homo_sapiens.GRCh38.97.cdna.all.ncrna_index \
+--decoys /tools/salmon/salmonReferences/ensembl_v97/decoys.txt \
+--kmerLen 31 # Recommended for > 75 bp reads
+
+```
+
+## Quantification
+
+### Determining the library type
+- Should be ISF, based on the TruSeq protocol, which is often refered to as a FR Second Strand protocol.
+- To ensure this is the case, used the `infer_experiment.py` script from `RSeQC` to determine strandedness. Used the following command on the 5 control samples:
+```{bash, eval = F, echo = T}
+/tools/RSeQC-2.6.4/scripts/infer_experiment.py -i PDC87_A1B4_GM-T_Aligned.sortedBysamtools.out.bam -r /data/references/ensembl/bed/v97/ensembl_GRCh38_v97.bed -s 10000000
+
+```
+- In each, output was majority fraction (> 80%) of reads: 1++,1--,2+-,2-+
+- According to Salmon, this is ISF. Also found a link to Galaxy training where this was also the library type associated with this result (https://training.galaxyproject.org/archive/2019-05-01/topics/transcriptomics/tutorials/ref-based/tutorial.html)
+
+### Creating a gene map
+- For gene quantification summarised at gene level, Salmon requires a transcript-to-gene map.
+- Tried using .gtf file, however, "transcript_id" does not include version number, which is provided in a separate entry ("transcript_version"). As Salmon uses transcript IDs that include the version number, needed to construct a simple .txt file with transcript ids (in the format ENST000000.x) and their corresponding gene IDs (in the format ENS0000000).
+```{r, eval = F, echo = T}
+# Load .gtf and filter for unique transcript ids
+transcripts <- 
+  readGFF(filepath = "/data/references/ensembl/gtf_gff3/v97/Homo_sapiens.GRCh38.97.gtf") %>% 
+  dplyr::filter(!is.na(transcript_id) & !is.na(transcript_version)) %>% 
+  tidyr::unite("combined_transcript_id", 
+               c("transcript_id", "transcript_version"), 
+               sep = ".", 
+               remove = FALSE) %>% 
+  dplyr::distinct(combined_transcript_id, .keep_all = TRUE)
+
+# Create map and save
+map <- transcripts %>% 
+  dplyr::select(combined_transcript_id, gene_id)
+
+write_delim(map, 
+            path = "/tools/salmon/salmonReferences/ensembl_v97/transcript_to_gene_map.txt", 
+            delim = "\t", 
+            col_names = FALSE)
+
+```
+
+### Running Salmon quantification
+- Chose not to run with transcript-to-gene map, as https://bioconductor.org/packages/release/bioc/html/tximport.html recommended for aggregating transcript-level abundance to gene-level
+```{bash, eval = F, echo = T}
+nohup Rscript \
+/home/rreynolds/packages/RNAseqProcessing/quantification/quantification_Salmon.R \
+/data/RNAseq_PD/tissue_polyA_samples/QC/fastp \
+/tools/salmon/salmonReferences/ensembl_v97/Homo_sapiens.GRCh38.97.cdna.all.ncrna_index \
+/data/RNAseq_PD/tissue_polyA_samples/salmon_quant \
+--sample_prefix=NM...._ \
+--sample_suffix=_S.* \
+--library_type=ISF \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_salmon_quant.log&
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

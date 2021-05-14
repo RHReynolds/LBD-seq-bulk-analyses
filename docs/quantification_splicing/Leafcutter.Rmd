@@ -1,0 +1,1554 @@
+---
+title: "LeafCutter"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(clusterProfiler)
+library(corrplot)
+library(data.table)
+library(DESeq2)
+library(GeneOverlap)
+library(gprofiler2)
+library(ggpubr)
+library(tidyverse)
+library(RNAseqProcessing)
+library(readxl)
+library(rlist)
+library(rtracklayer)
+library(UpSetR)
+devtools::load_all(path = "/home/rreynolds/packages/EWCE/")
+devtools::load_all(path = "/home/rreynolds/projects/MarkerGenes/")
+
+# Theme
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "right",
+        legend.text = element_text(size = 8),
+        strip.text = element_text(size = 7),
+        axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 7),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+
+knitr::opts_chunk$set(echo = F, warning = F, message= F)
+```
+
+> Aims: (i) to quantify intron excision ratios across samples; (ii) to perform differential splicing analyses across disease groups; (iii) to perform pathway enrichment analyses on groups of differentially spliced genes.
+
+# File paths/files for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+
+leafcutter_dir <- file.path(path_to_results, "leafcutter/")
+leafviz_dir <- "/home/rreynolds/packages/leafcutter/leafviz/"
+markergene_dir <- "/home/rreynolds/projects/MarkerGenes/"
+
+PCaxes <- 
+  readRDS(
+    file.path(
+      path_to_results, 
+      "Salmon_quant/bulk_tissue/PD_tissue_polyA_DESeqDataSet_filtered_design_PCaxes_DEG.Rds"
+    )
+  ) %>% 
+  colData() %>% 
+  as_tibble() %>% 
+  dplyr::select(sample_id, PC1, PC2, PC3, PC4)
+
+sample_info <- 
+  read_excel(
+    path = 
+      file.path(
+        path_to_raw_data,
+        "sample_details/20201229_MasterFile_SampleInfo.xlsx"
+      ), 
+    sheet = "SampleInfo", skip = 1
+  )  %>% 
+  dplyr::filter(Sample_Type == "Tissue section" & sent_to_bulk_seq == "yes") %>% 
+  dplyr::rename(sample_id = CaseNo, 
+                RIN = RINe_bulkRNA_Tapestation) %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD","DLB"))) %>% 
+  dplyr::select(sample_id, Disease_Group, Sex, AoO, AoD, DD, PMI, aSN, TAU, 'thal AB', 'aCG aSN score', Genetics, RIN) %>% 
+  dplyr::inner_join(PCaxes)
+
+```
+
+# Background
+
+- `leafcutter` quantifies intron excision ratios building a splicing graph with all split reads that have a shared donor or acceptor site sitting within one cluster
+- `leafcutter` operates in 3 steps: 
+    1. Converting aligned .bam files to .junc format detailing all the junctions of the each sample
+    2. Generate a intron excision clusters and calculate the intron excision ratios 
+    3. Perform differential splicing analysis 
+
+```{r leafcutter fig 1a, fig.width=20, fig.align='center'}
+knitr::include_graphics(here::here("docs", "quantification_splicing", "Screenshot 2019-03-07 at 16.16.28.png"))
+```
+
+- There are several filtering steps and parameters that are worth bearing in mind when using `leafcutter`. These include:
+    - To identify clusters of introns, split reads that map with **>= 6 nt** into each exon are extract from aligned.bam files.
+    - For each intron clusser, LeafCutter iteratively removes introns supported by 
+        1. < number of reads across all samples (default: 30)
+        2. OR < proportion of reads (default: 0.1%) of total number of intronic read counts for entire cluster
+    - When performing differential splicing analyses, tests are only performed for:
+        1. Introns detected (i.e. have >=1 corresponding spliced read) in >= select number of samples (default: 5)
+        2. Clusters found in each group are detected in >= select number of individuals (default: 3), with 20 spliced reads supporting introns in the cluster.
+- **NOTE:** These filters are customisable as optional parameters.
+
+# Running the code
+
+## Generating .junc input files
+
+### Convert STAR SJ.out.tab to junc
+- This function converts STAR aligned SJ.out.tab to junc files and removes any junctions that overlap with ENCODE blacklist regions
+```{R convert star aligned juncs to leafcutter.junc, echo = T , eval = F}
+
+RNAseqProcessing::convert_STAR_SJ_to_junc(sj_dir_path = file.path(path_to_bulk_seq_data, "STAR/"),
+                                          output_path = str_c(leafcutter_dir, "SJ_formatting/"),
+                                          filter_out_blacklist_regions = TRUE,
+                                          path_to_ENCODE_blacklist = file.path(path_to_raw_data, "misc/hg38-blacklist.v2.bed")
+
+```
+
+## Cluster introns
+
+- Here, the leafcutter script has various inputs: 
+    1. **-j** - text file with all junction files to be processed
+    2. **-r** - write to directory (default ./)
+    3. **-o** - output prefix (default leafcutter)
+    4. **-l** - maximum intron length in bp (default 100,000bp). Set to 1,000,000, which is what was used in the STAR alignment.
+    5. **-m** - minimum reads in a cluster (default 30 reads across all samples). Kept this at the default value. In theory, this would be the equivalent of detecting 1-2 reads for the same cluster across each of the 24 samples. Thus, it should still be possible to detect clusters with low read counts.
+    6. **-p** - minimum fraction of reads in a cluster that support a junction (default 0.001)
+    7. **-s** - use strand info (default=False)
+    
+```{bash run leafcutter python script to cluster introns, echo = T , eval = F}
+python /tools/leafcutter/clustering/leafcutter_cluster.py \
+-j /home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/SJ_formatting/list_juncfiles.txt \
+-r /home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/intron_clustering/ \
+-o tissue_polyA_test_diseasegroups \
+-l 1000000 \ 
+-m 30 \
+-p 0.001 \
+-s True
+
+```
+
+## Differential splicing analysis - sex, RIN, age of death
+
+- Here leafcutter allows an input of an exon file generated from a .gtf, which annotates clusters according to which gene they correspond to. The code for generating this file is below:
+
+```{bash display example of .txt file , echo = T, eval = F, class.source='fold-show'}
+Rscript /tools/leafcutter/scripts/gtf_to_exons.R \
+/data/references/ensembl/gtf_gff3/v97/Homo_sapiens.GRCh38.97.gtf.gz \
+/data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97_LC_exon_file.txt.gz
+```
+
+- Another input is a splitting the samples by groups. Within this file, it is also possible to include confounders. In this analysis, sex, RIN and age of death were added as potential confounders. File was generated using code below:
+```{R create group file, echo = T, eval = F, class.source='fold-show'}
+
+# Load per individual intron counts for column names
+sample_names <- fread(
+  str_c(leafcutter_dir, "intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz")
+  ) %>% 
+  dplyr::select(-V1) %>% 
+  colnames()
+
+# Create master df of sample info, with grouping variable (Disease_Group) and confounders (RIN, Sex, AoD)
+master <- 
+  tibble(lc_sample_name = sample_names,
+         sample_name = sample_names %>% 
+           str_replace("_.*", "")) %>% 
+  inner_join(sample_info, by = c("sample_name" = "sample_id")) %>% 
+  dplyr::select(lc_sample_name, Disease_Group, RIN, Sex, AoD) %>% 
+  arrange(Disease_Group)
+
+RNAseqProcessing::create_group_files_multi_pairwisecomp(df = master, 
+                                                        group_column_name = "Disease_Group", 
+                                                        output_path = str_c(leafcutter_dir, "diff_splicing/group_files/"))
+
+
+```
+
+- Currently, only pairwise comparisons are possible, thus will have to run the various combinations of pairwise comparison, and perform FDR correction once all results are compiled.
+- The leafcutter differential splicing script parameters:
+    - **--output_prefix** - The prefix for the two output files
+    - **--max_cluster_size** - Don’t test clusters with more introns than this [default = Inf]
+    - **--min_samples_per_intron** - Ignore introns used (i.e. at least one supporting read) in fewer than n samples [default = 5]
+    - **--min_samples_per_group** - Require this many samples in each group to have at least min_coverage reads supporting introns in cluster [default = 3]
+    - **--min_coverage** - Require min_samples_per_group samples in each group to have at least this many reads supporting introns in cluster [default = 20]
+    - **--timeout** - Maximum time (in seconds) allowed for a single optimization run [default = 30]
+    - **--num_threads** - Number of threads to use [default = 1]
+    - **--exon_file** - File defining known exons, example in data/gencode19_exons.txt.gz. Columns should be chr, start, end, strand, gene_name. Optional, only just to label the clusters.[default = NULL]
+
+```{bash run differential splicing leafcutter , echo = T, eval = F}
+nohup Rscript /home/rreynolds/packages/RNAseqProcessing/analysis/leafcutter_ds_multi_pairwise.R \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing/group_files/ \
+--output_prefix=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing/ \
+--max_cluster_size=Inf \
+--min_samples_per_intron=5 \
+--min_samples_per_group=3 \
+--min_coverage=20 \
+--timeout=30 \
+--num_threads=15 \
+--exon_file=/data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97_LC_exon_file.txt.gz \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_leafcutter_ds.log&
+
+```
+
+## Differential splicing analysis - PC axes 1-4
+- The only thing that requires changing here is the confounders used to create the group files, in addition to the location of the group files (so as not overwrite the previously created group files).
+```{R create group file PC axes, echo = T, eval = F, class.source='fold-show'}
+
+# Load per individual intron counts for column names
+sample_names <- 
+  fread(str_c(leafcutter_dir, "intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz")) %>% 
+  dplyr::select(-V1) %>% 
+  colnames()
+
+# Create master df of sample info, with grouping variable (Disease_Group) and confounders (PC axes 1-4)
+master <- 
+  tibble(lc_sample_name = sample_names,
+         sample_name = sample_names %>% 
+           str_replace("_.*", "")) %>% 
+  inner_join(sample_info, by = c("sample_name" = "sample_id")) %>% 
+  dplyr::select(lc_sample_name, Disease_Group, PC1, PC2, PC3, PC4) %>% 
+  arrange(Disease_Group)
+
+RNAseqProcessing::create_group_files_multi_pairwisecomp(df = master, 
+                                                        group_column_name = "Disease_Group", 
+                                                        output_path = str_c(leafcutter_dir, "diff_splicing_PCaxes/group_files/"))
+
+
+```
+- Likewise, need to change the paths given in the nohup command.
+
+```{bash run differential splicing leafcutter PC axes, echo = T, eval = F}
+nohup Rscript /home/rreynolds/packages/RNAseqProcessing/analysis/leafcutter_ds_multi_pairwise.R \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing_PCaxes/group_files/ \
+--output_prefix=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing_PCaxes/ \
+--max_cluster_size=Inf \
+--min_samples_per_intron=5 \
+--min_samples_per_group=3 \
+--min_coverage=20 \
+--timeout=30 \
+--num_threads=15 \
+--exon_file=/data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97_LC_exon_file.txt.gz \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_leafcutter_ds_PCaxes.log&
+
+```
+
+## Leafviz 
+
+### Generate the annotation files
+- Processes a given GTF file to produce exons, introns and splice sites.
+
+```{bash creating annotation code, echo = T , eval = F}
+/tools/leafcutter/leafviz/gtf2leafcutter.pl \
+-o /data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97 \
+/data/references/ensembl/gtf_gff3/v97/Homo_sapiens.GRCh38.97.gtf.gz
+
+```
+
+### Prepare results for use with Leafviz
+- For the shiny application, Leafviz, to run with the results of a differential splicing analysis, this requires that the results of the differential splicing have been formatted for use. 
+- LeafCutter provides a script, `prepare_results.R`, which performs this formatting, albeit for only one pairwise comparison. To format the results of multiple pairwise comparisons requires looping across the various pairwise comparisons and running the `prepare_results.R` for each individual pairwise comparison. This is what the `leafviz_multi_pairwise.R` script used below does.
+- Note: Using the `leafviz_multi_pairwise.R` script assumes use of the `leafcutter_ds_multi_pairwise.R` script and the `create_group_files_multi_pairwisecomp()` function. This ensures that all files needed are named consistently. That is, the (i) `_cluster_signficance.txt`, (ii) `_effect_sizes.txt` and (iii) `_group_file.txt` for an individual pairwise comparison all have the same prefix.   
+
+```{bash run prepare_results , echo = T, eval = F}
+nohup Rscript /home/rreynolds/packages/RNAseqProcessing/analysis/leafviz_multi_pairwise.R \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing/ \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing/ \
+/data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97 \
+--output_dir=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/leafviz/ \
+--group_file_dir=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing/group_files/ \
+--FDR=0.05 \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_leafviz_prepare_results.log&
+
+nohup Rscript /home/rreynolds/packages/RNAseqProcessing/analysis/leafviz_multi_pairwise.R \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing_PCaxes/ \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing_PCaxes/ \
+/data/references/ensembl/gtf_gff3/v97/leafcutter/Homo_sapiens.GRCh38.97 \
+--output_dir=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/leafviz_PCaxes/ \
+--group_file_dir=/home/rreynolds/projects/Aim2_PDsequencing_wd/results/leafcutter/diff_splicing_PCaxes/group_files/ \
+--FDR=0.05 \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_leafviz_PCaxes_prepare_results.log&
+
+```
+
+### Running Leafviz
+- The function has to be run separately for each of the pairwise comparisons.
+```{r run Leafviz, echo = T, eval=F, class.source='fold-show'}
+
+RNAseqProcessing::run_leafviz(leafviz_dir = leafviz_dir, 
+                              results_filename = file.path(leafcutter_dir, "leafviz_PCaxes/PDD_vs_DLB.Rda"))
+
+```
+
+# Results - sex, RIN, age of death
+**Note on naming convention**: results named `comparison[1]_vs_comparison[2]`, where `comparison[1]` is the baseline/reference value and `comparison[2]` is in reference to the baseline value.
+
+## Loading results
+
+- LeafCutter outputs 2 result files. The results come tested cluster by cluster rather than intron by intron. The two files list: 
+    1. The significance of a cluster i.e. whether there was differential intron excision between the two tested groups. Columns include:
+        a. cluster: the cluster id
+        b. Status: whether this cluster was a) successfully tested b) not tested for some reason (e.g. too many introns) c) there was an error during testing - this should be rare.
+        c. loglr: log likelihood ratio between the null model (no difference between the groups) and alternative (there is a difference)
+        d. df: degrees of freedom, equal to the number of introns in the cluster minus one (assuming two groups)
+        e. p: the resulting (unadjusted!) p-value under the asymptotic Chi-squared distribution. We just use p.adjust( ..., method="fdr") in R to control FDR based on these.
+    2. The effect sizes for every intron. Columns include:
+        a. intron: this has the form chromosome:intron_start:intron_end:cluster_id
+        b. log effect size (as fitted by LeafCutter).
+        c. Fitted usage proportion in condition 1.
+        d. Fitted usage proportion in condition 2.
+        e. DeltaPSI: the difference in usage proprotion (condition 2 - condition 1). Note that in general this will have the same sign as the log effect size but in some cases the sign may change as a result of larger changes for other introns in the cluster.
+```{r load leafcutter output, echo = T, eval = F}
+
+clusters <- list.files(file.path(leafcutter_dir, "diff_splicing/"), pattern = "cluster_", recursive = T, full.names = T)
+intron <- list.files(file.path(leafcutter_dir, "diff_splicing/"), pattern = "effect_", recursive = T, full.names = T)
+
+for(i in 1:length(clusters)){
+  
+  comparison <- clusters[i] %>% 
+                    str_replace("/.*/", "") %>% 
+                    str_replace("_cluster_significance.txt", "")
+  
+  lc <- read_delim(clusters[i], delim = "\t") %>% 
+    
+    dplyr::mutate(comparison = comparison) %>% 
+    dplyr::select(comparison, everything())
+  
+  if(i == 1){
+    
+    lc_all <- lc
+
+  } else{
+    
+    lc_all <- lc_all %>% 
+      bind_rows(lc)
+    
+  }
+  
+}
+
+for(i in 1:length(intron)){
+  
+  comparison <- intron[i] %>% 
+                    str_replace("/.*/", "") %>% 
+                    str_replace("_effect_sizes.txt", "")
+  
+  int <- read_delim(intron[i], delim = "\t") %>% 
+    dplyr::mutate(comparison = comparison) %>% 
+    dplyr::select(comparison, everything())
+  
+  if(i == 1){
+    
+    int_all <- int
+    
+  } else{
+    
+    int_all <- int_all %>% 
+      bind_rows(int)
+    
+  }
+  
+}
+# Filter for significant clusters
+# Add direction of effect
+lc_filtered <- lc_all %>% 
+  # filter for successful tests and remove clusters overlapping multiple genes
+  dplyr::filter(status == "Success", p.adjust < 0.05, !str_detect(genes, ",")) %>%
+  tidyr::separate(cluster, into = c("chr", "cluster"), sep = ":") %>% 
+  dplyr::inner_join(int_all %>% 
+                      tidyr::separate(intron, into = c("chr", "start", "end", "cluster"), sep = ":")) %>% 
+  dplyr::mutate(direction_of_effect = case_when(deltapsi > 0 ~ "upregulated",
+                                                deltapsi < 0 ~ "downregulated",
+                                                deltapsi == 0 ~ "no_change"))
+
+
+# Save results
+write_csv(lc_filtered,
+            path = file.path(leafcutter_dir, "diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.csv"))
+saveRDS(setNames(list(lc_all, int_all, lc_filtered),
+         c("cluster_significance", "intron_usage", "significant_clusters_0.05_filter")),
+        file.path(leafcutter_dir, "diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.Rds"))
+
+
+```
+
+## Summary of results
+```{r summary leafcutter, echo = F, eval = T}
+
+results_covar <- readRDS(file.path(leafcutter_dir, "diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.Rds")) 
+
+# Summary of differential splicing run
+summary <- results_covar$cluster_significance %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::summarise(n = n()) %>%
+  tidyr::spread(key = comparison, value = n) %>% 
+  dplyr::mutate(status = "Total clusters across all samples (read >= 30)") %>% 
+  dplyr::select(status, everything()) %>% 
+  dplyr::bind_rows(results_covar$cluster_significance %>% 
+                     dplyr::group_by(comparison, status) %>% 
+                     dplyr::summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n)) %>% 
+  dplyr::bind_rows(results_covar$significant_clusters_0.05_filter %>% 
+                     dplyr::distinct(comparison, cluster, genes) %>% 
+                     dplyr::group_by(comparison) %>% 
+                     summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters, p.adjust < 0.05") %>% 
+                     dplyr::select(status, everything())) %>% 
+  dplyr::bind_rows(results_covar$cluster_significance %>% 
+                     # filter for successful tests and remove clusters that overlap multiple genes
+                     dplyr::filter(status == "Success", p.adjust < 0.05, !str_detect(genes, ",")) %>%
+                     tidyr::separate(cluster, into = c("chr", "cluster_id"), sep = ":") %>% 
+                     dplyr::inner_join(results_covar$intron_usage %>% 
+                                         tidyr::separate(intron, into = c("chr", "start", "end", "cluster_id"), sep = ":")) %>% 
+                     dplyr::filter(abs(deltapsi) >= 0.1) %>% 
+                     dplyr::distinct(comparison, cluster_id, genes) %>% 
+                     dplyr::group_by(comparison) %>% 
+                     summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters, p.adjust < 0.05, |dPSI| >= 0.1") %>% 
+                     dplyr::select(status, everything())) %>% 
+  dplyr::mutate(status = str_replace(status, "Success", "Successfully tested"))
+
+# Add propotions
+summary <- summary %>% 
+  dplyr::bind_rows((((summary %>% 
+                       dplyr::filter(status == "Successfully tested") %>% 
+                       dplyr::select(-status))/(summary %>% 
+                                                  dplyr::filter(status == "Total clusters across all samples (read >= 30)") %>% 
+                                                  dplyr::select(-status))) *100) %>% 
+                     dplyr::mutate(status = "Successfully tested/Total clusters (%)")) %>% 
+  dplyr::bind_rows((((summary %>% 
+                       dplyr::filter(status == "Differentially spliced clusters, p.adjust < 0.05") %>% 
+                       dplyr::select(-status))/(summary %>% 
+                                                  dplyr::filter(status == "Successfully tested") %>% 
+                                                  dplyr::select(-status))) *100) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters/Successfully tested (%)"))
+
+summary %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+  
+
+```
+
+```{r, fig.cap= "Histogram of intron numbers per cluster in various comparisons. Dashed red line indicates median intron number within each comparison. X-axis limited to show only clusters with up to 40 introns (max. within the significant differentially spliced clusters)."}
+
+results_covar$intron_usage %>% 
+  tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster_id"), sep = ":") %>% 
+  dplyr::group_by(comparison, cluster_id) %>% 
+  dplyr::summarise(n_intron = n()) %>% 
+  dplyr::inner_join(results_covar$intron_usage %>% 
+                      tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster_id"), sep = ":") %>% 
+                      dplyr::group_by(comparison, cluster_id) %>% 
+                      dplyr::summarise(n_intron = n()) %>% 
+                      dplyr::group_by(comparison) %>% 
+                      dplyr::summarise(median = median(n_intron))) %>% 
+  ggplot(aes(x = n_intron)) + 
+  stat_count(color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept=median), color="red",
+             linetype="dashed") +
+  facet_wrap(vars(comparison)) + 
+  coord_cartesian(xlim = c(0,40)) +
+  theme_rhr
+
+```
+
+## Pathway enrichment analysis
+- Using a .gtf file, intron clusters can be annotated to genes. Thus, differential excision events can be run through g:Profiler using the genes to which the these events were annotated. 
+- Prior to running this analysis, worth knowing just how many differentially spliced genes overlap between the pairwise comparisons and likewise how many can be considered "unique" to a pairwise comparison.
+
+```{r UpsetR, fig.height = 6, out.width = '100%', echo = T, warning = F, fig.cap= "Overlap between pairwise comparisons. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+
+# Run once
+all_genes <- results_covar$cluster_significance %>% 
+  # remove clusters that overlap multiple genes
+  dplyr::filter(!str_detect(genes, ",")) %>% 
+  .[["genes"]] %>% 
+  unique() 
+
+
+genes_list <- setNames(results_covar$significant_clusters_0.05_filter %>% 
+                           group_split(comparison),
+                         results_covar$significant_clusters_0.05_filter %>% 
+                           .[["comparison"]] %>% 
+                           unique() %>% 
+                           sort()) %>% 
+  # For each dataframe, extract the gene column and remove duplicate genes
+  lapply(., function(x){x %>% 
+      dplyr::distinct(genes, p.adjust, .keep_all = TRUE) %>% 
+      dplyr::group_by(genes) %>%
+      dplyr::top_n(n = 1, wt = -p.adjust) %>%
+      # Order by p-value
+      dplyr::arrange(p.adjust) %>%
+      .[["genes"]]
+    })
+
+upset(fromList(genes_list), sets = names(genes_list), keep.order = TRUE, nintersects = 25, order.by = "freq")
+
+```
+
+```{r Jaccard, fig.height = 5, out.width = '100%', echo = T, warning = F, fig.cap= "Jaccard index between diffentially spliced genes identified in pairwise comparisons. Calculated by dividing the size of the intersection between two gene lists by the union of the two. Intersections with a Jaccard index > 0.05 (i.e. greater than 5% overlap) are highlighted within the plot, with Jaccard indices provided."}
+
+gom.self <- newGOM(genes_list, genes_list, genome.size = length(all_genes))
+All.jaccard <- getMatrix(gom.self, "Jaccard")
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(All.jaccard, method="color", col=col(100), cl.lim = c(0,1), 
+          type="lower", 
+          # addCoef.col = "black", number.cex = 0.75, # Add coefficient of correlation
+          tl.col="black", tl.srt=45, tl.cex = 0.75, mar=c(0,0,1,0), #Text label color and rotation
+          p.mat = All.jaccard, sig.level = (0.05), insig = "p-value", number.cex = 0.75,  
+          diag = TRUE)
+
+```
+- Greater than 5% overlap between all pairwise comparisons, with the greatest overlap between Control_vs_DLB and PDD vs DLB.
+- It's also worth noting that there is no point in splitting comparisons by direction of effect (i.e. up and downregulated clusters associated with a gene), as all genes have both up and downregulated introns within a cluster. This is confirmed by the below code where all genes return the value `TRUE` for the statement `upregulated > 0 & downregulated > 0`.
+
+```{r, echo = T, class.source='fold-show'}
+
+results_covar$significant_clusters_0.05_filter %>% 
+  dplyr::select(comparison, genes, direction_of_effect) %>% 
+  dplyr::group_by(comparison, genes, direction_of_effect) %>% 
+  dplyr::summarise(n = n()) %>% 
+  tidyr::spread(key = direction_of_effect, value = n) %>% 
+  # Create new column with ifelse determining whether number of splicing events that are both up and down > 0 for each gene
+  dplyr::mutate(up_and_down = ifelse(upregulated > 0 & downregulated > 0, TRUE, FALSE)) %>% 
+  .[["up_and_down"]] %>% 
+  # Determine wheter all logical values in up_and_down column = TRUE
+  all(na.rm = T)
+
+```
+
+```{r g:Profiler, echo = T, eval = F, class.source='fold-show'}
+
+# Run once
+gprofiler_results_list <- lapply(genes_list, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "gSCS", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       evcodes = TRUE)})
+
+saveRDS(gprofiler_results_list, file.path(leafcutter_dir, "gprofiler/gprofiler_leafcutter_ds_SexRINAoD.Rds"))
+
+```
+
+- Some filtering of results occurred to remove broad terms i.e. only term_sizes > 20 and <= 2000 are included in table below. Same threshold set during pathway analysis for differential gene expression. 
+- Background list used includes all genes tested in the analysis amounting to: `r length(all_genes)` genes
+
+```{r g:Profiler results, echo = T, eval = T}
+
+gprofiler_results_list <- readRDS(file.path(leafcutter_dir, "gprofiler/gprofiler_leafcutter_ds_SexRINAoD.Rds"))
+
+# Added some filtering to remove broad terms
+gprofiler_df <- gprofiler_results_list %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>%
+  dplyr::arrange(comparison, source, p_value)
+
+gprofiler_df %>%
+  dplyr::group_by(comparison) %>%
+  dplyr::summarise(n_enriched_pathways = n())
+
+gprofiler_df %>% 
+  dplyr::arrange(comparison, source, p_value) %>% 
+  dplyr::select(-evidence_codes, -intersection) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- gProfiler outputs a number of columns, a few of which are not entirely self-explanatory, including:
+    - precision: this is the proportion of genes in the input gene list that can be assigned this term i.e. overlap.size/query.size
+    - recall: this is the proportion of genes in the input list that overlap with the term i.e. overlap.size/term.size
+    - relative depth: the term's depth in "local" hierarchy
+- No significant terms returned for Control_vs_PDD.
+- Other comparisons:
+    - Control_vs_DLB
+        - GO terms related to biological processes are splicing-oriented and related to localisation of cellular components, while cellular-component-related terms are a bit more diverse, highlighting nuclear components, organelles, and molecular function terms related to binding. See some mention of neuron-related terms ("neuron part", "synapse").
+        - KEGG highlights endocytosis, while REACTOME terms relate to transport, endocytosis, splicing, and membrane trafficking.
+    - Control_vs_PD: 
+        - GO BP terms relate to cytoskeletal organisation, while CC appear to pick up neuron-related terms ("synapse", "neuron projection", "postsynapse", "presynapse", "axon").  
+        - REACTOME also highlights neuron-related terms ("neuronal system", "protein-protein interactions at synapses"), in addition to "PI metabolism" and "synthesis of PIPs at the plasma membrane" (both are related)
+    - Control vs PDD:
+        - Rho GTPase cycle
+    - PDD_vs_DLB
+        - GO BP related to cell projection and protein phosphorylation; CC to cell projection; and MF (molecular function) terms highlighted related to binding (protein, purines, nucleosides and nucleotides).
+        - KEGG highlights PI signalling, inositol phosphate metabolism
+    - PD_vs_DLB: 
+        - KEGG highlights "long-term potentiation".
+    - PD_vs_PDD: 
+        - Only one pathway -- GnRH signalling. N.B. GnRH receptor = GPCR, which activates PLC --> hydrolyses PIP2 to DAG and IP3 (in other words, phosphatidylinositol/inositol also impt for this pathway -- and both highlighted in DLB vs PDD).
+
+# Results - PC axes
+**Note on naming convention**: results named `comparison[1]_vs_comparison[2]`, where `comparison[1]` is the baseline/reference value and `comparison[2]` is in reference to the baseline value.
+
+## Loading results
+```{r load leafcutter output PCaxes, echo = T, eval = F}
+
+clusters <- list.files(file.path(leafcutter_dir, "diff_splicing_PCaxes/"), pattern = "cluster_significance", recursive = T, full.names = T)
+intron <- list.files(file.path(leafcutter_dir, "diff_splicing_PCaxes/"), pattern = "effect_", recursive = T, full.names = T)
+
+for(i in 1:length(clusters)){
+  
+  comparison <- clusters[i] %>% 
+                    str_replace("/.*/", "") %>% 
+                    str_replace("_cluster_significance.txt", "")
+  
+  lc <- read_delim(clusters[i], delim = "\t") %>% 
+    
+    dplyr::mutate(comparison = comparison) %>% 
+    dplyr::select(comparison, everything())
+  
+  if(i == 1){
+    
+    lc_all <- lc
+
+  } else{
+    
+    lc_all <- lc_all %>% 
+      bind_rows(lc)
+    
+  }
+  
+}
+
+for(i in 1:length(intron)){
+  
+  comparison <- intron[i] %>% 
+                    str_replace("/.*/", "") %>% 
+                    str_replace("_effect_sizes.txt", "")
+  
+  int <- read_delim(intron[i], delim = "\t") %>% 
+    dplyr::mutate(comparison = comparison) %>% 
+    dplyr::select(comparison, everything())
+  
+  if(i == 1){
+    
+    int_all <- int
+    
+  } else{
+    
+    int_all <- int_all %>% 
+      bind_rows(int)
+    
+  }
+  
+}
+
+# Filter for significant clusters
+# Add direction of effect
+lc_filtered_PC <- lc_all %>% 
+  # filter for successful tests and remove clusters overlapping multiple genes
+  dplyr::filter(status == "Success", p.adjust < 0.05, !str_detect(genes, ",")) %>%
+  tidyr::separate(cluster, into = c("chr", "cluster"), sep = ":") %>% 
+  dplyr::inner_join(int_all %>% 
+                      tidyr::separate(intron, into = c("chr", "start", "end", "cluster"), sep = ":")) %>% 
+  dplyr::mutate(direction_of_effect = case_when(deltapsi > 0 ~ "upregulated",
+                                                deltapsi < 0 ~ "downregulated",
+                                                deltapsi == 0 ~ "no_change"))
+
+# Save results
+write_csv(lc_filtered_PC,
+            path = file.path(leafcutter_dir, "diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.csv"))
+saveRDS(setNames(list(lc_all, int_all, lc_filtered_PC),
+         c("cluster_significance", "intron_usage", "significant_clusters_0.05_filter")),
+        file.path(leafcutter_dir, "diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.Rds"))
+
+```
+
+## Summary of results
+```{r summary leafcutter PCaxes, echo = F, eval = T}
+
+results_PC <- readRDS(file.path(leafcutter_dir, "diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.Rds"))
+
+# Summary of differential splicing run
+summary <- results_PC$cluster_significance %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::summarise(n = n()) %>%
+  tidyr::spread(key = comparison, value = n) %>% 
+  dplyr::mutate(status = "Total clusters across all samples (read >= 30)") %>% 
+  dplyr::select(status, everything()) %>% 
+  dplyr::bind_rows(results_PC$cluster_significance %>% 
+                     dplyr::group_by(comparison, status) %>% 
+                     dplyr::summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n)) %>% 
+  dplyr::bind_rows(results_PC$significant_clusters_0.05_filter %>% 
+                     dplyr::distinct(comparison, cluster, genes) %>% 
+                     dplyr::group_by(comparison) %>% 
+                     summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters, p.adjust < 0.05") %>% 
+                     dplyr::select(status, everything())) %>% 
+  dplyr::bind_rows(results_PC$cluster_significance %>% 
+                     # filter for successful tests and remove clusters that overlap multiple genes
+                     dplyr::filter(status == "Success", p.adjust < 0.05, !str_detect(genes, ",")) %>%
+                     tidyr::separate(cluster, into = c("chr", "cluster_id"), sep = ":") %>% 
+                     dplyr::inner_join(results_PC$intron_usage %>% 
+                                         tidyr::separate(intron, into = c("chr", "start", "end", "cluster_id"), sep = ":")) %>% 
+                     dplyr::filter(abs(deltapsi) >= 0.1) %>% 
+                     dplyr::distinct(comparison, cluster_id, genes) %>% 
+                     dplyr::group_by(comparison) %>% 
+                     summarise(n = n()) %>% 
+                     tidyr::spread(key = comparison, value = n) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters, p.adjust < 0.05, |dPSI| >= 0.1") %>% 
+                     dplyr::select(status, everything())) %>% 
+  dplyr::mutate(status = str_replace(status, "Success", "Successfully tested"))
+
+# Add propotions
+summary <- summary %>% 
+  dplyr::bind_rows((((summary %>% 
+                       dplyr::filter(status == "Successfully tested") %>% 
+                       dplyr::select(-status))/(summary %>% 
+                                                  dplyr::filter(status == "Total clusters across all samples (read >= 30)") %>% 
+                                                  dplyr::select(-status))) *100) %>% 
+                     dplyr::mutate(status = "Successfully tested/Total clusters (%)")) %>% 
+  dplyr::bind_rows((((summary %>% 
+                       dplyr::filter(status == "Differentially spliced clusters, p.adjust < 0.05") %>% 
+                       dplyr::select(-status))/(summary %>% 
+                                                  dplyr::filter(status == "Successfully tested") %>% 
+                                                  dplyr::select(-status))) *100) %>% 
+                     dplyr::mutate(status = "Differentially spliced clusters/Successfully tested (%)"))
+
+summary %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+# write_delim(summary, file.path(leafcutter_dir, "diff_splicing_PCaxes/summary.txt"), delim = "\t")
+  
+
+```
+
+```{r, eval = F}
+
+summary %>% 
+  dplyr::filter(status %in% c("Successfully tested",
+                              "Differentially spliced clusters, p.adjust < 0.05",
+                              "Differentially spliced clusters, p.adjust < 0.05, |dPSI| >= 0.1")) %>% 
+  dplyr::mutate(status = str_replace_all(status, ", ", "\n"),
+                status = fct_relevel(status,
+                                     c("Successfully tested",
+                                       "Differentially spliced clusters\np.adjust < 0.05",
+                                       "Differentially spliced clusters\np.adjust < 0.05\n|dPSI| >= 0.1"))) %>% 
+  tidyr::gather(key = "comparison", value = "number_of_clusters", -status) %>% 
+  ggplot(aes(x = MarkerGenes::reorder_within(x = comparison, by = number_of_clusters, within = status, fun = max, desc = T), 
+             y = number_of_clusters)) +
+  geom_col(position = position_dodge()) +
+  MarkerGenes::scale_x_reordered() +
+  facet_wrap(vars(status), scales = "free", ncol = 1) +
+  labs(x = "", y = "Number of clusters") +
+  theme_rhr
+
+```
+
+
+```{r, fig.cap= "Histogram of intron numbers per cluster in various comparisons. Dashed red line indicates median intron number within each comparison. X-axis limited to show only clusters with up to 40 introns (max. within the significant differentially spliced clusters)."}
+
+results_PC$intron_usage %>% 
+  tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster_id"), sep = ":") %>% 
+  dplyr::group_by(comparison, cluster_id) %>% 
+  dplyr::summarise(n_intron = n()) %>% 
+  dplyr::inner_join(results_PC$intron_usage %>% 
+                      tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster_id"), sep = ":") %>% 
+                      dplyr::group_by(comparison, cluster_id) %>% 
+                      dplyr::summarise(n_intron = n()) %>% 
+                      dplyr::group_by(comparison) %>% 
+                      dplyr::summarise(median = median(n_intron))) %>% 
+  ggplot(aes(x = n_intron)) + 
+  stat_count(color = "black", alpha = 0.5) +
+  geom_vline(aes(xintercept=median), color="red",
+             linetype="dashed") +
+  facet_wrap(vars(comparison)) + 
+  coord_cartesian(xlim = c(0,40)) + 
+  theme_rhr
+
+```
+
+## Pathway enrichment analysis
+- Some filtering of results occurred to remove broad terms i.e. only term_sizes <= 2000 are included in table below. Same threshold set during pathway analysis for differential gene expression. 
+```{r, echo = T}
+
+all_genes <- results_PC$cluster_significance %>% 
+  dplyr::filter(!str_detect(genes, ",")) %>% 
+  .[["genes"]] %>% 
+  unique() 
+
+# Extract differentially spliced genes
+genes_list_PC <- setNames(results_PC$significant_clusters_0.05_filter %>% 
+                           group_split(comparison),
+                         results_PC$significant_clusters_0.05_filter %>% 
+                           .[["comparison"]] %>% 
+                           unique() %>% 
+                           sort()) %>% 
+  # For each dataframe, extract the gene column and remove duplicate genes
+  lapply(., function(x){x %>% 
+      dplyr::distinct(genes, p.adjust, .keep_all = TRUE) %>% 
+      dplyr::group_by(genes) %>%
+      dplyr::top_n(n = 1, wt = -p.adjust) %>%
+      # Order by p-value
+      dplyr::arrange(p.adjust) %>%
+      .[["genes"]]
+  })
+
+# Change names on genes_list_PC to denote correction method
+names(genes_list_PC) <- str_c(names(genes_list_PC), "_PCaxes")
+# Create master list with genes from both correction methods
+master_list <- c(genes_list, genes_list_PC)
+
+```
+
+- Background list used includes all genes tested in the analysis amounting to: `r length(all_genes)` genes
+
+```{r g:Profiler PCaxes, echo = T, eval = F}
+
+# Run once
+gprofiler_results_list <- lapply(genes_list_PC, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "gSCS", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       evcode = TRUE)})
+
+saveRDS(gprofiler_results_list, file.path(leafcutter_dir, "gprofiler/gprofiler_leafcutter_ds_PCaxes.Rds"))
+
+```
+
+```{r g:Profiler results PCaxes, echo = F, eval = T}
+
+gprofiler_results_list <- readRDS(file.path(leafcutter_dir, "gprofiler/gprofiler_leafcutter_ds_PCaxes.Rds"))
+
+# Added some filtering to remove broad terms
+gprofiler_df_PC <- gprofiler_results_list %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>%
+  dplyr::arrange(comparison, source, p_value)
+
+gprofiler_df_PC %>%
+  dplyr::group_by(comparison) %>%
+  dplyr::summarise(n_enriched_pathways = n())
+
+gprofiler_df_PC %>% 
+  dplyr::arrange(comparison, source, p_value) %>% 
+  dplyr::select(-evidence_codes, -intersection) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+```{r, echo = F, fig.height = 12, fig.cap = "Gene ontology enrichments (GO, KEGG, REACTOME) of genes across each comparison. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the function (defined as intersection_size/query_size). Fill of dot indicates FDR-adjusted p-value."}
+
+# Not filtered by PSI
+plot <- 
+  gprofiler_df_PC %>% 
+  dplyr::mutate(term_name = fct_relevel(term_name, 
+                                        gprofiler_df_PC %>% 
+                                          dplyr::select(-evidence_codes, -intersection) %>% 
+                                          dplyr::distinct(term_name, p_value) %>% 
+                                          dplyr::group_by(term_name) %>% 
+                                          dplyr::top_n(n = 1, wt = p_value) %>% 
+                                          .[["term_name"]] %>% 
+                                          rev()),
+                comparison_type = ifelse(str_detect(comparison, "Control"), "Ref: control", "Ref: disease"),
+                comparison = str_replace(comparison, "_PCaxes", "") %>% 
+                  fct_relevel(., c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB"))) %>% 
+  ggplot(aes(x = comparison, 
+             y = term_name, 
+             size = precision, 
+             fill = p_value)) +
+  geom_point(pch = 21) +    
+  facet_grid(cols = vars(comparison_type), scales = "free_x") +
+  scale_fill_viridis_c(direction = -1) +
+  labs(x = "", y = "Term") +
+  theme_rhr
+
+plot
+
+```
+
+# Overlapping GO terms
+- Can qualitatively see that there are some terms that overlap both within the correction methods, but also across, so to double-check the extent of overlap can:
+    1. Identify overlapping terms.
+    2. Display in UpSetR plot.
+    
+## Overlapping terms
+```{r}
+source(here::here("R", "useful_functions.R"))
+
+gprofiler_df %>% 
+  dplyr::bind_rows(gprofiler_df_PC) %>% 
+  keep_duplicates(., "term_id") %>% 
+  arrange(term_id) %>% 
+  dplyr::select(comparison, term_name) %>% 
+  dplyr::group_by(term_name) %>% 
+  dplyr::summarise(n_overlaps = n(),
+                   comparisons = str_c(comparison, collapse = ";")) %>% 
+  arrange(-n_overlaps) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+## Visualisation of overlaps
+```{r, fig.height = 6, out.width = '100%', echo = T, warning = F, fig.cap= "Overlap between gprofiler output of pairwise comparisons. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+gprofiler_term_list <- c(setNames(gprofiler_df %>% 
+                                    group_split(comparison),
+                                  gprofiler_df %>% 
+                                    .[["comparison"]] %>% 
+                                    unique() %>% 
+                                    sort()) %>% 
+                           lapply(., function(x){x %>% .[["term_id"]] %>% unique()}),
+                         setNames(gprofiler_df_PC %>% 
+                                    group_split(comparison),
+                                  gprofiler_df_PC %>% 
+                                    .[["comparison"]] %>% 
+                                    unique() %>% 
+                                    sort()) %>% 
+                           lapply(., function(x){x %>% .[["term_id"]] %>% unique()}))
+
+upset(fromList(gprofiler_term_list), sets = names(gprofiler_term_list), keep.order = TRUE, order.by = "freq")
+```
+
+# EWCE: pre- and post-deconvolution
+- In addition to running gProfiler, can use EWCE to explore cellular enrichments of the various gene lists.
+- [Expression-weighted cell-type enrichment](https://www.frontiersin.org/articles/10.3389/fnins.2016.00016/full) tests whether a gene list has higher than expected expression in one cell type compared to all others (within the dataset). "Expected expression" is calculated by randomly generating 100,000 gene lists of the same length as the gene list of interest from the background gene set.
+- Random sampling is performed without replacement. 
+    - This can be problematic with bigger gene lists, as the number of genes in the background list is limited (in our case, the number of genes in the background list = `r length(all_genes)`).
+    - Given that our longest list is `r master_list %>% lapply(., length) %>% unlist() %>% max()`, we may wish to minimise these lists.
+- To deal with this we can:
+    1. Run EWCE using ranked gene lists of lengths: 50, 100, 250 and 500. 
+        - Upper bound of the length was decided by the shortest gene list, which was `r master_list %>% lapply(., length) %>% unlist() %>% min()` genes long.
+        - Used p-value to determine which genes were included in the lists i.e. top 50 most significant differentially spliced genes
+        - This was done for genes derived from leafcutter pre- and post-deconvolution.
+
+## Lists ranked by p-value
+```{r, echo = T, eval = F}
+
+# Load internal specificity matrices
+ctd_files <- 
+  list.files(
+    file.path(
+      path_to_results,
+      "snRNA/specificity_matrices/2020_March/"
+    ), 
+    pattern = "ctd", 
+    full.names = T)
+    
+
+ctd_list <- vector(mode = "list", length = length(ctd_files))
+
+for(i in 1:length(ctd_files)){
+  
+  # Load ctd
+  ctd_list[[i]] <- readRDS(ctd_files[i])
+  
+  # Extract file name
+  title <- 
+    ctd_files[i] %>% 
+    str_replace(".*/", "") %>% 
+    str_replace("\\..*", "") %>% 
+    str_replace(".*_", "")
+  
+  # Name list
+  names(ctd_list)[i] <- title
+ 
+}
+
+# Load external datasets
+load(file.path(markergene_dir, "specificity_matrices/AIBS2018_MTG.rda"))
+load(file.path(markergene_dir, "specificity_matrices/Habib2017_DroNc_Human.rda"))
+
+# To save repeatedly querying biomaRt we have a stored dataset containing all the human 
+# orthologs of MGI genes, mouse_to_human_homologs. 
+load(file.path(markergene_dir, "data/mouse_to_human_orthologs.rda"))
+m2h <- mouse_to_human_orthologs %>% 
+  dplyr::filter(mmusculus_homolog_orthology_type == "ortholog_one2one") %>% 
+  dplyr::select(hgnc_symbol, mmusculus_homolog_associated_gene_name) %>% 
+  dplyr::rename(MGI_symbol = mmusculus_homolog_associated_gene_name) %>% 
+  dplyr::filter(hgnc_symbol != "") %>% 
+  dplyr::distinct(hgnc_symbol, MGI_symbol)
+
+# Function to loop across gene lists of n length
+ewce_top_n <- function(leafcutter_results, top_n){
+  
+  for(i in 1:length(top_n)){
+    
+    genes_list_ewce <- setNames(leafcutter_results$significant_clusters_0.05_filter %>% 
+                                  group_split(comparison),
+                                leafcutter_results$significant_clusters_0.05_filter %>% 
+                                  .[["comparison"]] %>% 
+                                  unique() %>% 
+                                  sort()) %>% 
+      # For each dataframe, extract the gene column and remove duplicate genes
+      lapply(., function(x){x %>% 
+          dplyr::distinct(comparison, genes, p.adjust) %>% 
+          dplyr::group_by(genes) %>%
+          # Within gene, choose top cluster based on p.adjust
+          dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+          dplyr::ungroup() %>%
+          # Select top genes by p.adjust
+          dplyr::top_n(n = top_n[i], wt = -p.adjust) %>% 
+          .[["genes"]]
+      })
+    
+    # Running EWCE with 10000 bootstraps
+    results <- MarkerGenes::run_ewce_controlled(list_of_genes = genes_list_ewce,
+                                                ctd_AIBS2018, ctd_DRONC_human, 
+                                                ctd_list$Control, ctd_list$PD,
+                                                ctd_list$PDD, ctd_list$DLB,
+                                                celltypeLevel = 1, 
+                                                reps = 10000, 
+                                                genelistSpecies = "human", 
+                                                sctSpecies = "human",
+                                                mouse_to_human = m2h) %>% 
+      dplyr::mutate(n_genes = top_n[i])
+    
+    if(i == 1){
+      
+      final_ewce <- results
+      
+    } else{
+      
+      final_ewce <- final_ewce %>% 
+        bind_rows(results)
+      
+    }
+    
+  }
+  
+  return(final_ewce)
+  
+}
+
+top_n <- c(50, 100, 250, 500)
+ewce <- setNames(vector(mode = "list", length = 2),
+                 c("covar", "PC"))
+
+ewce$covar <- ewce_top_n(leafcutter_results = results_covar,
+                         top_n = top_n)
+ewce$PC <- ewce_top_n(leafcutter_results = results_PC,
+                      top_n = top_n)
+
+saveRDS(ewce, file = file.path(leafcutter_dir, "ewce/ewce_leafcutter_ds.Rds"))
+
+```
+
+```{r, fig.height = 16, out.width = '100%', fig.cap = "EWCE results using differentially spliced genes (a) pre-deconvolution and (b) post-deconvolution and single-cell RNA-seq data from two external datasets (AIBS2018 study and the DRONC_human study) and our own internal snRNA. The x-axis denotes the size of the gene set used in EWCE i.e. whether it was the top 50, 100, 250 or 500 differentially spliced genes (as determined by FDR). The y-axis denotes the cell type and from which specificity matrix it is derived. Enrichments are grouped by the disease groups compared in the differential splicing analysis and overall cell-type classes. Standard deviations from the mean denotes the distance (in standard deviations) of the target list from the mean of the bootstrapped samples. Multiple test correction was performed across all results using FDR; non-significant results (p > 0.05) were coloured grey. exPFC=glutamatergic neurons from the PFC, exCA1/3=pyramidal neurons from the Hip CA region, GABA=GABAergic interneurons, exDG=granule neurons from the Hip dentate gyrus region, ASC=astrocytes, NSC=neuronal stem cells, MG=microglia, ODC=oligodendrocytes, OPC=oligodendrocyte precursor cells, NSC=neuronal stem cells, SMC=smooth muscle cells, END= endothelial cells."}
+
+ewce <- readRDS(file = file.path(leafcutter_dir, "ewce/ewce_leafcutter_ds.Rds"))
+
+ewce <- 
+  ewce %>% 
+  lapply(., function(df){
+    
+    df %>% 
+      dplyr::mutate(Class = case_when(CellType %in% c("Astrocyte", "ASC", "Astro") ~ "Astrocyte",
+                                      CellType %in% c("MG", "Microglia") ~ "Microglia",
+                                      CellType %in% c("END", "Endo", "Endothelial cell", "Vascular") ~ "Vascular",
+                                      CellType %in% c("ODC", "Oligo", "Oligodendrocyte") ~ "Oligodendrocyte",
+                                      CellType %in% c("exCA", "Excitatory", "exDG", "exPFC", "Glutamatergic") ~ "Excitatory \n neuron",
+                                      CellType %in% c("GABA", "GABAergic", "Inhibitory") ~ "Inhibitory \n neuron",
+                                      CellType == "OPC" ~ "OPC", 
+                                      CellType == "NSC" ~ "NSC")) 
+  })
+
+plot_list <- vector(mode = "list", length = length(ewce))
+
+for(i in 1:length(ewce)){
+  
+  plot_list[[i]] <- 
+    ewce[[i]] %>% 
+    dplyr::mutate(FDR.p = p.adjust(p, method="BH"),
+                  Study = str_replace(Study, "DRONC_human", "DRONC"),
+                  Study = str_replace(Study, "list\\$", ""),
+                  Study = fct_relevel(Study, 
+                                      c("AIBS2018", "DRONC", "Control", "PD", "PDD", "DLB")),
+                  joint_name = str_c(Study, CellType, sep = ":"),
+                  GeneSet = fct_relevel(GeneSet,
+                                        c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB")),
+                  sd_from_mean = ifelse(FDR.p <= 0.05, sd_from_mean, NA)) %>% 
+    dplyr::arrange(Class, Study) %>% 
+    dplyr::mutate_at(vars(joint_name), list(~ factor(., levels = unique(.)))) %>% 
+    ggplot(aes(x = as.factor(n_genes), y = forcats::fct_rev(joint_name))) +
+    geom_tile(aes(fill = sd_from_mean), colour = "black") +    
+    facet_grid(cols = vars(GeneSet), rows = vars(Class), scales = "free_y", space = "free_y") +
+    scale_fill_viridis_c(na.value = "grey") +
+    labs(x = "Length of input gene list", y = "Dataset: Cell type") +
+    theme_rhr + 
+    theme(panel.grid = element_blank(),
+          strip.text.x = element_text(size = 8, angle = 90),
+          strip.text.y = element_text(size = 8, angle = 0))
+  
+}
+
+ggarrange(plotlist = plot_list,
+          nrow = 2,
+          labels = c("a", "b"))
+
+```
+
+- We are interested in those cell types that show a consistent pattern across the varying lengths of gene list e.g. in Control_vs_DLB, gene lists of all four lengths enrich in oligodendrocytes across all specificity matrices
+- Bearing the above in mind, we observe the following:
+    - Pre-deconvolution:
+        - Astrocytes highlighted across gene sets of all sizes across most comparisons (except PDD_vs_DLB) and in several datasets (predominantly our own).
+        - Excitatory neurons highlighted in Control_vs_PD and Control_vs_PDD.
+        - Inhibitory neurons highlighted only in Control_vs_PD.
+        - Oligodendrocytes appear to be highlighted across all comparisons and in all studies.
+        - OPCs highlighted using our own data in Control_vs_PDD, PD_vs_PDD, and PDD_vs_DLB.
+        - Vascular cells somewhat more scattered enrichments, primarily in our own data, and primarily using gene sets > 100 genes.
+    - Post-deconvolution:
+        - Astrocytes highlighted across most gene set sizes, predominantly in our own data. Compared to pre-deconvolution, PDD_vs_DLB now highlighted, too.
+        - Excitatory neurons highlighted across a few more comparisons compared to pre-deconvolution.
+        - Inhibitory neurons still predominantly highlighted in Control_vs_PD.
+        - Some loss of oligodendrocyte enrichment in PD_vs_PDD compared to pre-deconvolution, but for the most part quite similar to pre-deconvolution.
+        - OPCs appear to have a lot more significant enrichments in PD_vs_DLB and PDD_vs_DLB post-deconvolution.
+        - Again, vascular cell enrichments are scatered. 
+- In summary, profiles of cellular enrichment are not entirely dissimilar pre- and post-deconvolution. This is to be expected given that the proportion of genes unique to each comparison pre- and post-deconvolution ranges from 10-20%. In other words, this is in keeping with what we have seen so far in terms of overlapping genes and gprofiler terms.  
+- **Note:** When looking at our own internal data, interpreting enrichments seen in the same cell type across different disease groups (i.e. Control, PD, PDD, DLB) is non-trivial. Is this because specificity profiles for this cell type are similar between disease groups?
+
+### Plot of top 100 differentially spliced genes
+```{r, fig.height = 7, fig.cap = "EWCE results using the top 100 differentially spliced genes (as determined by FDR) post-deconvolution and single-cell RNA-seq data from two external datasets (AIBS2018 study and the DRONC_human study) and our own internal snRNA. The x-axis denotes the disease groups compared in the differential splicing analysis, while the y-axis denotes the cell type and from which specificity matrix it is derived. Enrichments are grouped by overall cell-type classes. Standard deviations from the mean denotes the distance (in standard deviations) of the target list from the mean of the bootstrapped samples. Multiple test correction was performed across all results using FDR; non-significant results (p > 0.05) were coloured grey. exPFC=glutamatergic neurons from the PFC, exCA1/3=pyramidal neurons from the Hip CA region, GABA=GABAergic interneurons, exDG=granule neurons from the Hip dentate gyrus region, ASC=astrocytes, NSC=neuronal stem cells, MG=microglia, ODC=oligodendrocytes, OPC=oligodendrocyte precursor cells, NSC=neuronal stem cells, SMC=smooth muscle cells, END= endothelial cells."}
+
+# Plot of the 100 genes results post-deconvolution
+ewce$PC %>% 
+  dplyr::mutate(FDR.p = p.adjust(p, method="BH"),
+                Study = str_replace(Study, "DRONC_human", "DRONC"),
+                Study = str_replace(Study, "list\\$", ""),
+                Study = fct_relevel(Study, 
+                                    c("AIBS2018", "DRONC", "Control", "PD", "PDD", "DLB")),
+                joint_name = str_c(Study, CellType, sep = ":"),
+                GeneSet = fct_relevel(GeneSet,
+                                      c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB")),
+                sd_from_mean = ifelse(FDR.p <= 0.05, sd_from_mean, NA)) %>% 
+  dplyr::filter(n_genes == 100) %>% 
+  dplyr::arrange(Class, Study) %>% 
+  dplyr::mutate_at(vars(joint_name), funs(factor(., levels = unique(.)))) %>% 
+  ggplot(aes(x = GeneSet, y = forcats::fct_rev(joint_name))) +
+  geom_tile(aes(fill = sd_from_mean), colour = "black") +    
+  facet_grid(rows = vars(Class), scales = "free_y", space = "free_y") +
+  scale_fill_viridis_c(na.value = "grey") +
+  labs(x = "Comparison", y = "Dataset: Cell type") +
+  theme_rhr + 
+  theme(panel.grid = element_blank(),
+        strip.text.y = element_text(size = 8, angle = 0))
+
+
+```
+
+# Analyses re-visited with |dPSI| >= 0.1 
+- Applied additional filter of |dPSI|, which has been shown to reduce the number of false positives associated with Leafcutter (https://www.biorxiv.org/content/10.1101/463927v1.full). Chose to use filter of |dPSI| >= 0.1 based on comparison of MAJIQ/Leafcutter made by same authors of the biorxiv article (https://biociphers.wordpress.com/2017/12/11/leafcutter-vs-majiq-and-comparing-differential-splicing-algorithms/), where "a more permissive threshold of dPSI >10% for positive events" had similar impact on reducing the proportion of false positives as the threshold of |dPSI| > 20%.
+- What effect does applying the filter of |dPSI| >= 0.1 have?
+
+```{r, fig.height = 7, fig.cap= "Histogram of deltaPSI of introns within differentially spliced clusters identified using (a) co-variate correction and (b) PC-axis correction. Dashed red line indicates median delta PSI within each facet, while dashed blue line indicates the |dPSI| >= 0.1 cut-off."}
+
+leafcutter_list <- setNames(list(readRDS(file.path(leafcutter_dir, "diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.Rds")), 
+                                 readRDS(file.path(leafcutter_dir, "diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.Rds"))),
+                            c("covar", "PC"))
+
+plot_list <- leafcutter_list %>% 
+  lapply(., function(x){
+    
+    x$significant_clusters_0.05_filter %>% 
+      dplyr::mutate(xintercept = ifelse(direction_of_effect == "upregulated", 0.1, -0.1)) %>% 
+      dplyr::inner_join(x$significant_clusters_0.05_filter %>% 
+                          dplyr::group_by(comparison, direction_of_effect) %>% 
+                          dplyr::summarise(median = median(deltapsi))) %>% 
+      ggplot(aes(x = deltapsi)) + 
+      geom_histogram(color = "black", binwidth = 0.01, alpha = 0.5) +
+      geom_vline(aes(xintercept = median), color="red",
+                 linetype="dashed") +
+      geom_vline(aes(xintercept = xintercept), color="#00BFC4",
+                 linetype="dashed") +
+      facet_grid(rows = vars(comparison), cols = vars(direction_of_effect), scales = "free_x") + 
+      # coord_cartesian(ylim = c(0,2000)) +
+      theme_rhr
+    
+  })
+
+ggarrange(plotlist = plot_list,
+          ncol = 2, 
+          labels = c("a", "b"))
+
+```
+
+- It is worth noting from this that correction with PC axes results in quite a shift in the distribution of dPSI, particularly for Control_vs_DLB.
+- With this in mind, let's now apply the filter of |dPSI| >= 0.1.
+
+```{r, echo = T, class.source='fold-show'}
+# Adding filter of dPSI
+stringent <- leafcutter_list %>% 
+  lapply(., function (x){
+    
+    x$cluster_significance %>% 
+      # filter for successful tests and remove clusters that overlap multiple genes
+      dplyr::filter(status == "Success", p.adjust < 0.05, !str_detect(genes, ",")) %>%
+      tidyr::separate(cluster, into = c("chr", "cluster_id"), sep = ":") %>% 
+      dplyr::inner_join(x$intron_usage %>% 
+                          tidyr::separate(intron, into = c("chr", "start", "end", "cluster_id"), sep = ":")) %>% 
+      dplyr::filter(abs(deltapsi) >= 0.1) 
+
+    
+  })
+
+# Number of differentially spliced clusters
+stringent %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::distinct(comparison, cluster_id, genes) %>% 
+      dplyr::group_by(comparison) %>% 
+      dplyr::summarise(n = n())
+    
+  })
+
+# Number of differentially spliced genes
+stringent %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::distinct(comparison, genes) %>% 
+      dplyr::group_by(comparison) %>% 
+      dplyr::summarise(n = n())
+    
+  })
+
+```
+
+## Plot of gene intersections with Jaccard index
+- P-value of Fisher's exact test displayed within tiles.
+```{r, fig.height=6}
+genes_list_covar <-
+    setNames(stringent$covar %>% 
+             dplyr::filter(str_detect(comparison, "Control")) %>% 
+             group_split(comparison),
+           stringent$covar %>% 
+             dplyr::filter(str_detect(comparison, "Control")) %>% 
+             .[["comparison"]] %>% 
+             unique() %>% 
+             sort()) %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::mutate(abs_deltapsi = abs(deltapsi)) %>% 
+      dplyr::distinct(comparison, genes, abs_deltapsi, p.adjust) %>% 
+      dplyr::group_by(genes) %>%
+      # Where duplicate genes occur, select by lowest p-value first
+      # If still duplicate, select by highest absolute delta PSI
+      dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+      dplyr::top_n(n = 1, wt = abs_deltapsi) %>% 
+      # Order by p.adjust
+      dplyr::arrange(p.adjust) %>%
+      .[["genes"]]
+
+  })
+
+genes_list_PC <-
+  setNames(stringent$PC %>% 
+             dplyr::filter(str_detect(comparison, "Control")) %>% 
+             group_split(comparison),
+           str_c("PC_", c(stringent$PC %>% 
+             dplyr::filter(str_detect(comparison, "Control")) %>% 
+             .[["comparison"]] %>% 
+             unique() %>% 
+             sort()))) %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::mutate(abs_deltapsi = abs(deltapsi)) %>% 
+      dplyr::distinct(comparison, genes, abs_deltapsi, p.adjust) %>% 
+      dplyr::group_by(genes) %>%
+      # Where duplicate genes occur, select by lowest p-value first
+      # If still duplicate, select by highest absolute delta PSI
+      dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+      dplyr::top_n(n = 1, wt = abs_deltapsi) %>% 
+      # Order by p.adjust
+      dplyr::arrange(p.adjust) %>%
+      .[["genes"]]
+    
+  })
+
+gom.obj <- GeneOverlap::newGOM(genes_list_covar, genes_list_PC)
+GeneOverlap::drawHeatmap(gom.obj, what="Jaccard", grid.col="Blues", note.col = "black")
+```
+
+## EWCE
+- The problem with application of this filter is that the number of high-confidence differentially spliced introns differs considerably between comparisons e.g. for PC-corrected DS events, Control_vs_DLB has > 1000 differentially spliced clusters, compared to PD_vs_PDD with ~ 250.
+- As a result, we will need to limit the size of the Control_vs_DLB list for the same reason as above. 
+- For now, limit to top 100 (as above). Rank by p-value followed by |dPSI|, as opposed to p-value alone.
+
+```{r, eval = F}
+
+genes_list_ewce <- 
+  setNames(stringent$PC %>% 
+             group_split(comparison),
+           stringent$PC %>% 
+             .[["comparison"]] %>% 
+             unique() %>% 
+             sort()) %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::mutate(abs_deltapsi = abs(deltapsi)) %>% 
+      dplyr::distinct(comparison, genes, abs_deltapsi, p.adjust) %>% 
+      dplyr::group_by(genes) %>%
+      # Where duplicate genes occur, select by lowest p-value first
+      # If still duplicate, select by highest absolute delta PSI
+      dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+      dplyr::top_n(n = 1, wt = abs_deltapsi) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::top_n(n = 100, wt = abs_deltapsi) %>%
+      .[["genes"]]
+    
+  })
+
+ewce_dPSI <- MarkerGenes::run_ewce_controlled(list_of_genes = genes_list_ewce,
+                                            ctd_AIBS2018, ctd_DRONC_human, 
+                                            ctd_list$Control, ctd_list$PD,
+                                            ctd_list$PDD, ctd_list$DLB,
+                                            celltypeLevel = 1, 
+                                            reps = 100000, 
+                                            genelistSpecies = "human", 
+                                            sctSpecies = "human",
+                                            mouse_to_human = m2h)
+
+
+saveRDS(ewce_dPSI, file = file.path(leafcutter_dir, "ewce/ewce_leafcutter_ds_PC_dPSIfilter.Rds"))
+
+```
+
+```{r, fig.height = 7, fig.cap = "EWCE results using the top 100 differentially spliced genes (FDR < 0.05, with rank determined by absolute delta PSI) post-deconvolution and single-cell RNA-seq data from two external datasets (AIBS2018 study and the DRONC_human study) and our own internal snRNA. The x-axis denotes the disease groups compared in the differential splicing analysis, while the y-axis denotes the cell type and from which specificity matrix it is derived. Enrichments are grouped by overall cell-type classes. Standard deviations from the mean denotes the distance (in standard deviations) of the target list from the mean of the bootstrapped samples. Multiple test correction was performed across all results using FDR; non-significant results (p > 0.05) were coloured grey. exPFC=glutamatergic neurons from the PFC, exCA1/3=pyramidal neurons from the Hip CA region, GABA=GABAergic interneurons, exDG=granule neurons from the Hip dentate gyrus region, ASC=astrocytes, NSC=neuronal stem cells, MG=microglia, ODC=oligodendrocytes, OPC=oligodendrocyte precursor cells, NSC=neuronal stem cells, SMC=smooth muscle cells, END= endothelial cells."}
+
+ewce_dPSI <- readRDS(file.path(leafcutter_dir, "ewce/ewce_leafcutter_ds_PC_dPSIfilter.Rds"))
+
+plot <- ewce_dPSI %>%
+  dplyr::mutate(FDR.p = p.adjust(p, method="BH"),
+                Class = case_when(
+                  CellType %in% c("Astrocyte", "ASC", "Astro") ~ "Astrocyte",
+                  CellType %in% c("MG", "Microglia") ~ "Microglia",
+                  CellType %in% c("END", "Endo", "Endothelial cell", "Vascular") ~ "Vascular",
+                  CellType %in% c("ODC", "Oligo", "Oligodendrocyte") ~ "Oligodendrocyte",
+                  CellType %in% c("exCA", "Excitatory", "exDG", "exPFC", "Glutamatergic") ~ "Excitatory \n neuron",
+                  CellType %in% c("GABA", "GABAergic", "Inhibitory") ~ "Inhibitory \n neuron",
+                  CellType == "OPC" ~ "OPC",
+                  CellType == "NSC" ~ "NSC"),
+                Study = str_replace(Study, "DRONC_human", "DRONC"),
+                Study = str_replace(Study, "list\\$", ""),
+                Study = fct_relevel(Study, 
+                                    c("AIBS2018", "DRONC", "Control", "PD", "PDD", "DLB")),
+                comparison_type = ifelse(str_detect(GeneSet, "Control"), "Ref: control", "Ref: disease"),
+                joint_name = str_c(Study, CellType, sep = ":"),
+                GeneSet = fct_relevel(GeneSet %>% str_replace_all(., "_", " "),
+                                      c("Control vs PD", "Control vs PDD", "Control vs DLB", "PD vs PDD", "PD vs DLB", "PDD vs DLB")),
+                sd_from_mean = ifelse(FDR.p <= 0.05, sd_from_mean, NA)) %>% 
+  # dplyr::filter(!Study %in% c("AIBS2018", "DRONC"), comparison_type == "Ref: control") %>%
+  dplyr::arrange(Class, Study) %>% 
+  dplyr::mutate_at(vars(joint_name), list(~ factor(., levels = unique(.)))) %>% 
+  ggplot(aes(x = GeneSet, y = forcats::fct_rev(joint_name))) +
+  geom_tile(aes(fill = sd_from_mean), colour = "black") +    
+  facet_grid(rows = vars(Class), 
+    cols = vars(comparison_type),
+    scales = "free", space = "free_y") +
+  scale_fill_viridis_c(na.value = "grey") +
+  labs(x = "", y = "Disease status: Cell type", fill = "s.d. from\nthe mean") +
+  theme_rhr + 
+  theme(panel.grid = element_blank(),
+        strip.text.y = element_text(size = 8, angle = 0))
+
+plot
+
+```
+
+- Highlights excitatory neurons, astrocytes and oligodendrocytes.
+- Notably, only oligodendrocytes highlighted for Control_vs_PDD, and neuronal enrichment appears much more pronounced in Control_vs_DLB.
+
+## Gene ontology
+
+### Pathway enrichment analysis
+- Try running dPSI-filtered lists with GO ontology. 
+- Only using cell-type-corrected data.
+
+```{r, echo = T, fig.cap = "Gene ontology enrichments (GO, KEGG, REACTOME) of genes across each comparison. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the function (defined as intersection_size/query_size). Fill of dot indicates FDR-adjusted p-value."}
+
+genes_list_PC <-
+    setNames(stringent$PC %>% 
+             group_split(comparison),
+           stringent$PC %>% 
+             .[["comparison"]] %>% 
+             unique() %>% 
+             sort()) %>% 
+  lapply(., function(x){
+    
+    x %>% 
+      dplyr::mutate(abs_deltapsi = abs(deltapsi)) %>% 
+      dplyr::distinct(comparison, genes, abs_deltapsi, p.adjust) %>% 
+      dplyr::group_by(genes) %>%
+      # Where duplicate genes occur, select by lowest p-value first
+      # If still duplicate, select by highest absolute delta PSI
+      dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+      dplyr::top_n(n = 1, wt = abs_deltapsi) %>% 
+      # Order by p.adjust
+      dplyr::arrange(p.adjust) %>%
+      .[["genes"]]
+
+  })
+
+gprofiler_PSI <- lapply(genes_list_PC, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "gSCS", 
+       significant = TRUE,
+       user_threshold = 0.05,
+       ordered_query = FALSE,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       evcodes = TRUE)})
+
+gprofiler_PSI_df <- gprofiler_PSI %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) 
+  
+gprofiler_PSI_df %>%   
+  dplyr::mutate(term_name = fct_relevel(term_name, 
+                                        gprofiler_PSI_df %>% 
+                                          dplyr::select(-evidence_codes, -intersection) %>% 
+                                          dplyr::distinct(term_name, p_value) %>% 
+                                          dplyr::group_by(term_name) %>% 
+                                          dplyr::top_n(n = 1, wt = p_value) %>% 
+                                          .[["term_name"]] %>% 
+                                          rev()),
+                comparison = str_replace(comparison, "_PCaxes", "") %>% 
+                  fct_relevel(., c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB"))) %>% 
+  ggplot(aes(x = comparison, 
+             y = term_name, 
+             size = precision, 
+             fill = p_value)) +
+  geom_point(pch = 21) +    
+  scale_fill_viridis_c(direction = -1) +
+  labs(x = "Comparison", y = "Dataset: Cell type") +
+  theme_rhr
+
+```
+
+### ClusterProfiler
+- Also, try running with clusterProfiler, which has a number of useful functionalities:
+    - `compareCluster`: permits comparison of GO enrichments across groups. Uses hypergeometric model to perform enrichment analysis within each group (i.e. does not account for semantic similarity in testing as GProfiler does, which could be a disadvantage)
+    - Allows semantic trimming of terms.
+    - A number of useful visualisations.
+
+```{r, eval = F, echo = T}
+
+library(clusterProfiler)
+
+source(here::here("R", "biomart_df.R"))
+
+cluster_compare_input <- 
+  stringent$PC %>% 
+  dplyr::mutate(abs_deltapsi = abs(deltapsi)) %>% 
+  dplyr::distinct(comparison, genes, abs_deltapsi, p.adjust) %>% 
+  dplyr::mutate(comparison = fct_relevel(comparison,
+                                         c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB",
+                                           "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB"))) %>% 
+  dplyr::arrange(comparison) %>% 
+  dplyr::group_by(genes) %>%
+  # Where duplicate genes occur, select by lowest p-value first
+  # If still duplicate, select by highest absolute delta PSI
+  dplyr::top_n(n = 1, wt = -p.adjust) %>% 
+  dplyr::top_n(n = 1, wt = abs_deltapsi)
+
+ont <- c("BP", "CC", "MF")
+cluster_compare_list <- setNames(vector(mode = "list", length = length(ont)),
+                             ont)
+
+for(i in 1:length(ont)){
+  
+  cluster_compare_list[[i]] <-   
+    cluster_compare_input %>% 
+    clusterProfiler::compareCluster(genes ~ comparison, 
+                                    data=., 
+                                    keyType = "SYMBOL",
+                                    fun="enrichGO", 
+                                    ont = ont[i],
+                                    pAdjustMethod = "BH",
+                                    qvalueCutoff = 0.05,
+                                    OrgDb='org.Hs.eg.db')
+  
+}
+
+
+saveRDS(cluster_compare_list,
+        file.path(leafcutter_dir, "gprofiler/clusterProfiler_leafcutter_ds_PC_dPSIfilter.Rds"))
+
+
+```
+
+```{r, echo = T, fig.cap = "Gene ontology enrichments (GO) of genes across each comparison. Size of dot indicates gene ratio, which is the proportion of genes in the input list that are annotated to the function (defined as intersection_size/query_size). Fill of dot indicates FDR-adjusted p-value."}
+
+cluster_compare <- readRDS(file.path(leafcutter_dir, "gprofiler/clusterProfiler_leafcutter_ds_PC_dPSIfilter.Rds"))
+
+cluster_compare %>% 
+  lapply(., function(df){
+    
+    df %>% 
+      clusterProfiler::simplify(., cutoff=0.5, by="p.adjust", select_fun=min) %>% 
+  clusterProfiler::dotplot(., showCategory = NULL, font.size = 8) +
+  geom_point(shape = 1,colour = "black") +
+  scale_size_continuous(name = "gene ratio") +
+  scale_colour_viridis_c(direction = -1) +
+  theme_rhr
+    
+  })
+
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```

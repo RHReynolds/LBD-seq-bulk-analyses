@@ -1,0 +1,587 @@
+---
+title: 'Deconvolution with Scaden: Vascular cells'
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(biomaRt)
+library(DescTools)
+library(dotwhisker)
+library(DT)
+library(DESeq2)
+library(ggsci)
+library(ggpubr)
+library(readxl)
+library(tidyverse)
+library(stringr)
+
+# Themes
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+theme_rhr_coord_flip <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10), 
+        strip.text.y = element_text(angle = 90),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+
+```
+
+> Aim: re-run deconvolution with Scaden, using combination of endothelial cell and pericytes as one cell type i.e. vascular cell.
+
+# File paths for workflow
+
+```{r file-paths}
+
+source(here::here("R", "file_paths.R"))
+
+path_to_scaden_results <- file.path(path_to_results, "deconvolution/scaden/")
+
+sample_info <- 
+  read_excel(path = 
+               file.path(
+                 path_to_raw_data,
+                 "sample_details/20201229_MasterFile_SampleInfo.xlsx"
+               ), 
+             sheet = "SampleInfo", skip = 1)  %>% 
+  dplyr::filter(Sample_Type == "Tissue section" & sent_to_bulk_seq == "yes") %>% 
+  dplyr::select(CaseNo, Disease_Group, Sex, AoO, AoD, DD, PMI, aSN, TAU, 'thal AB', 'aCG aSN score', Genetics, RINe_bulkRNA_Tapestation) %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD","DLB"))) %>% 
+  dplyr::rename(sample_id = CaseNo)
+
+```
+
+# Background
+- Following clustering, cell-type marker lists from (Wang et al.)[https://www.ncbi.nlm.nih.gov/pubmed/30545857] were used to check cell type identity. That is, expression of marker lists was explored in a heatmap and hierarchical clustering of nuclei was performed to see whether they would separate into the same groups as formed by clustering.
+
+```{r end-per-plot, fig.width=10, fig.align='center', fig.cap = "Heatmap of expression of pericyte markers in a representative sample. At the top, nuclei are clustered by expression of these markers, and the top bar of colour represents what the nuclei were originally labelled as in clustering.*"}
+knitr::include_graphics(
+  here::here("docs", "deconvolution", "EndoPer_2020_02_05T13_55_14_495Z.png")
+  )
+```
+
+- What is clear from figure above is that two groups are formed, which are primarily made up of pericytes/endothelial cells. Some nuclei, however, that have been labelled as endothelial cells appear to cluster with pericytes and vice versa.
+- Given that these are such small populations and we cannot confidently call pericytes as pericytes, chose to merge the two into the cell type labelled "vascular cell".
+
+# Implementing Scaden {.tabset}
+1. Training data generation and pre-processing.
+    a. Requires transforming single-nuclear count data from logarithmic space to non-logarithmic space. As a part of pre-processing, training data is log2-transformed and scaled to the range [0,1], thus it is important that count data is not already in logarithmic space.
+2. Training of 3 deep neural network models.
+3. Prediction of cell-type proportions in bulk tissue.
+    
+## Training data generation
+Steps include:
+
+1. Pre-processing bulk data (already performed)
+2. Pre-processing snRNA-seq data (requires repeating)
+    a. Can use '*_norm_counts_all.txt' files from previous run, as expression data has not changed.
+    b. Will need to create new cell type label files ('*_celltypes.txt'). Order of files needs to be the same as in the count data.
+3. Bulk simulation using bulk_simulation.py provided by Scaden. 
+4. Combine artificial samples into h5ad file using create_h5ad_file.py
+
+### Pre-processing snRNA-seq data
+- Files have already been pre-processed and all that requires changing is the "_celltypes.txt" file.
+- It is worth noting that if we compare old and new labels, the number of nuclei assigned to each cell type does differ between the two files (see table below). This is because of the stochastic nature of the algorithm (Conos) when re-clustering cells. Also, old cell type labes were clustered separately by the disease groups, whereas the new labels are created from a joint graph of all 28 single-nuclear samples. 
+
+```{r delta-cell-type-numbers}
+
+# Read in new cell type labels
+ct <- 
+  read_delim(file = 
+               file.path(path_to_raw_data,
+                         "Cell.Type.Annotations.For.All.Samples.csv"),
+                 delim = " ", 
+                 col_names = c("ID", "Celltype"), 
+                 skip = 1)
+
+# Read in old celltype file
+# Create dataframe of scaden-formatted files
+old_path <- file.path(path_to_raw_data, "deconvolution/scaden/2019Oct/")
+
+sn_df <- data.frame(
+  file_path = list.files(path = old_path, full.names = T, include.dirs = F),
+  files = list.files(path = old_path, include.dirs = F),
+  sample_name = list.files(path = old_path, include.dirs = F) %>% 
+    str_replace("_.*", ""),
+  file_type = list.files(path = old_path, include.dirs = F) %>% 
+    str_replace(".txt", "") %>% 
+    str_remove("^.*?_")) %>% 
+  dplyr::filter(file_type %in% c("norm_counts_all", "celltypes"))
+
+# Extract sample names for loop
+samples <- sn_df %>% .[["sample_name"]] %>% as.character() %>% unique()
+
+# Loop to load in files
+for (i in 1:length(samples)) {
+
+  celltype <- read_delim(file = sn_df %>%
+                           dplyr::filter(sample_name == samples[i], file_type == "celltypes") %>%
+                           .[["file_path"]] %>%
+                           as.character(),
+                         delim = "\t") %>%
+    dplyr::mutate(sample_name = samples[i])
+
+  if(i == 1){
+
+    master_df <- celltype
+
+  }else{
+
+    master_df <- master_df %>%
+      dplyr::bind_rows(celltype)
+
+  }
+
+
+}
+
+# Calculate difference in numbers assigned to each cell type between old and new labels
+ct %>%
+  tidyr::separate(ID, into = c("sample_name", "disease_group", "barcode"), sep = "_") %>%
+  dplyr::group_by(sample_name, Celltype) %>%
+  dplyr::summarise(n_new_labels = n()) %>%
+  dplyr::filter(sample_name %in% samples) %>%
+  dplyr::full_join(master_df %>%
+                      dplyr::group_by(sample_name, Celltype) %>%
+                      dplyr::summarise(n_old_labels = n())) %>%
+  dplyr::mutate(diff = n_new_labels - n_old_labels)
+
+```
+
+- For re-formatting used script: [snRNAseq_endo_per_to_vascular.R](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/snRNAseq_endo_per_to_vascular.R)
+
+### Pre-processing bulk data 
+- This was already performed in [deconvolution_scaden.html](deconvolution_scaden.html).
+
+## Bulk simulation, creation of h5ad file, training and prediction
+- Created a shell script to run end-to-end scaden process i.e. from generating bulk --> prediction. Link: [scaden_script.sh](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/scaden_script.sh)
+- Ran with:
+    - Cells: 1000
+    - Samples: 1000
+    - Training steps: 5000
+- Choice of cells and samples based on optimisation performed in [deconvolution_scaden.html](deconvolution_scaden.html).
+```{bash, eval = F}
+
+# copy files into container from server
+docker cp /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/deconvolution/scaden/2019Oct/ scaden_rreynolds:/home/data/PD_seq/scaden_2020Feb/
+docker cp /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/deconvolution/scaden/2020Feb/ scaden_rreynolds:/home/data/PD_seq/scaden_2020Feb/
+
+# Re-initiate docker
+docker exec -it scaden_rreynolds bash
+
+# move files within docker to directory samples/
+cd /home/data/PD_seq/scaden_2020Feb/
+mkdir samples
+cd /home/data/PD_seq/scaden_2020Feb/2019Oct
+mv *.txt /home/data/PD_seq/scaden_2020Feb/samples/
+cd /home/data/PD_seq/scaden_2020Feb/2020Feb/
+mv *.txt /home/data/PD_seq/scaden_2020Feb/samples/
+
+# Run script 
+bash /home/scripts/scaden_script.sh --sample_dir=/home/data/PD_seq/scaden_2020Feb/samples/ --n_cells=1000 --n_simulated_samples=1000 --n_training_steps=5000 --pred_path=/home/data/PD_seq/scaden/samples/bulkRNAseq_norm_counts.txt
+
+# Copy docker output to server
+docker cp scaden_rreynolds:/home/data/PD_seq/scaden_2020Feb/cells.1000_samples.1000/scaden_predictions_cells.1000:samples.1000.txt /home/rreynolds/projects/Aim2_PDsequencing_wd/results/deconvolution/scaden/2020Feb/scaden_predictions_cells.1000:samples.1000.txt 
+
+```
+
+```{r, eval = F}
+## Check number of genes in common between training data and bulk data (see dataset.dims in .h5ad object X)
+
+library(hdf5r)
+
+# docker cp scaden_rreynolds:/home/data/PD_seq/scaden_2020Feb/cells.1000_samples.1000/processed_pdseq_bulksim.h5ad /home/rreynolds/downloads/processed_pdseq_bulksim.h5ad
+
+file.h5 <- H5File$new("/home/rreynolds/downloads/processed_pdseq_bulksim.h5ad", mode="r+")
+file.h5$ls(recursive=TRUE) # 13191 x 24000
+file.h5$close_all()
+
+```
+
+
+# Results 
+
+## Correlation between old and new run
+```{r load-results, class.source='fold-show'}
+
+#----Loading results----
+
+# Source functions
+source(here::here("R", "scaden_rankings_and_calculate_ratios.R"))
+
+# Calculate cell type proportions from cell type assignments
+sn_proportions <- 
+  ct %>%
+  dplyr::mutate(Celltype = case_when(Celltype %in% c("Endo", "Per") ~ "Vascular", 
+                                     TRUE ~ Celltype)) %>% 
+  tidyr::separate(ID, into = c("sample_id", "disease_group", "ID"), sep = "_") %>% 
+  dplyr::mutate(sample_id = case_when(sample_id == "C36" ~ "C036",
+                                      sample_id == "C48" ~ "C048",
+                                      TRUE ~ sample_id)) %>% 
+  dplyr::group_by(Celltype, sample_id) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::group_by(sample_id) %>% 
+  dplyr::mutate(snRNA_proportions = n/sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(-n) %>% 
+  tidyr::spread(key = Celltype, value = snRNA_proportions)
+
+# Create dataframe with cell type classes
+cell_type_class <- data.frame(Celltype = sn_proportions %>% 
+                                dplyr::select(-sample_id) %>% 
+                                colnames() %>% 
+                                sort(),
+                              Celltype_class = factor(c("Astrocyte", "Neuron", "Neuron", 
+                                                        "Immune", "Oligo", "Oligo", "Vascular"),
+                                                      levels=c("Astrocyte", "Immune", "Oligo", "Vascular", 
+                                                               "Neuron")))
+
+# Read in scaden predictions, determine within-sample rankings of cell-types by proportions, and calculate glia-to-neuron and non-neuron-to-neuron ratios
+results <- scaden_rankings_and_calculate_ratios(prediction_dir = file.path(path_to_scaden_results, "2020Feb"),
+                                                unclassified_cell_type = "Unclassified", 
+                                                sample_info = sample_info %>% 
+                                                  dplyr::select(sample_id, Disease_Group), 
+                                                snRNAseq_proportions = sn_proportions, 
+                                                cell_type_class = cell_type_class,
+                                                glia = vars(Astro, Microglia, Oligo, OPC), 
+                                                nonneuron = vars(Astro, Vascular, Microglia, Oligo, OPC), 
+                                                neuron = vars(Excitatory, Inhibitory),
+                                                astrocyte = vars(Astro),
+                                                oligos = vars(Oligo, OPC),
+                                                microglia = vars(Microglia))
+
+# # Export cell-type proportions
+# write_delim(sn_proportions, file.path(path_to_scaden_results, "2020Feb/snRNA_proportions.txt"), delim = "\t")
+#
+# write_delim(results$ranks %>%
+#               dplyr::select(-rank_within_sample),
+#             file.path(path_to_scaden_results, "2020Feb/scaden_summary_results.txt"), delim = "\t")
+
+# saveRDS(results, file.path(path_to_scaden_results, "2020Feb/scaden_summary_results.Rds"))
+
+```
+
+```{r old-new-corr}
+
+# Read in old results
+old_results <- read_delim(file = file.path(path_to_scaden_results, "2019Oct/scaden_summary_results.txt"),
+                          delim = "\t")
+
+# Merge endo and per
+old_results <- 
+  old_results %>% 
+  dplyr::mutate(Celltype = case_when(Celltype %in% c("Endo", "Per") ~ "Vascular", 
+                                     TRUE ~ Celltype)) %>%
+  dplyr::group_by(sample_id, Celltype, source, cells, samples, .drop = F) %>% 
+  dplyr::summarise(cell_type_proportion = sum(cell_type_proportion)) %>% 
+  dplyr::arrange(sample_id, cells, samples, -cell_type_proportion)
+
+# Plot
+results$ranks %>% 
+           dplyr::filter(source == "Scaden deconvolution") %>% 
+  dplyr::select(-cells, -samples) %>% 
+  dplyr::inner_join(old_results %>% 
+           dplyr::filter(cells == 1000, samples == 1000, Celltype != "Unclassified") %>% 
+             dplyr::ungroup() %>% 
+             dplyr::select(-cells, -samples) %>% 
+             dplyr::rename(cell_type_proportion_old = cell_type_proportion), 
+           by = c("sample_id", "Celltype", "source")) %>% 
+  ggplot(aes(x = cell_type_proportion, y = cell_type_proportion_old)) +
+  geom_point() +
+  labs(x = "New scaden predictions", y = "Old scaden predictions") +
+  theme_rhr
+
+# Correlation of proportions for each cell type between new and old scaden predictions
+cor.test(results$ranks %>% 
+           dplyr::filter(source == "Scaden deconvolution" & cells == 1000 & samples == 1000) %>% 
+           dplyr::arrange(sample_id, Celltype) %>% 
+           .[["cell_type_proportion"]], 
+         old_results %>% 
+           dplyr::filter(cells == 1000, samples == 1000, Celltype != "Unclassified") %>% 
+           dplyr::arrange(sample_id, Celltype) %>% 
+           .[["cell_type_proportion"]], 
+         method = "spearman")
+
+```
+
+- Significant positive correlation between new and old scaden predictions.
+
+## Correlation of scaden and snRNA-seq labelling
+```{r scaden-snrna-corr-plot, fig.cap = "Scatterplot of cell-type proportions derived from snRNA-seq labelling or from scaden predictions across cell types."}
+
+data_to_plot <-
+  results$ranks %>% 
+           dplyr::filter(source == "Scaden deconvolution" & cells == 1000 & samples == 1000 |
+                           source == "snRNA-seq") %>% 
+  dplyr::select(sample_id, Celltype, cell_type_proportion, source) %>% 
+  tidyr::spread(key = source, value = cell_type_proportion)  %>% 
+  dplyr::filter(Celltype != "Unclassified")
+  
+data_to_plot %>% 
+  ggplot(aes(x = `Scaden deconvolution`, y = `snRNA-seq`)) +
+  geom_point() +
+  ggpubr::stat_cor(method = "spearman", label.x.npc = "centre", label.y.npc = "top", size = 2) +
+  facet_wrap(~ Celltype, scales = "free") +
+  labs(x = "Scaden cell-type proportions", "snRNA-seq cell-type proportions") +
+  theme_rhr +
+  theme(axis.text.x = element_text(angle = 0))
+
+``` 
+
+```{r scaden-snrna-corr}
+
+# Overall correlation
+print("Overall correlation")
+
+cor.test(data_to_plot$`Scaden deconvolution`,
+         data_to_plot$`snRNA-seq`, 
+         method = "spearman")
+
+# Correlation of rankings for each cell type between scaden predictions and snRNA-seq proportions
+print("Correlation by cell type")
+data_to_plot %>% 
+  dplyr::filter(Celltype != "Unclassified") %>% 
+  tidyr::nest(-Celltype) %>% 
+  dplyr::mutate(test = purrr::map(data, ~ cor.test(.x$`Scaden deconvolution`, .x$`snRNA-seq`, method = "spearman")),
+                tidied = map(test, broom::tidy)) %>% 
+  tidyr::unnest(tidied, .drop = TRUE) %>% 
+  dplyr::select(-data, -test) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- It's clear the correlation is stronger for some cell types compared to others e.g. strong correlation for microglia and OPCs, as compared to endothelial cells.
+
+## Cell-type proportions across disease groups
+```{r echo = F, fig.height = 8, fig.cap="Cell-type proportions derived from scaden deconvolution predictions or single-nuclear cell-type assignments grouped by disease status. Scaden neural networks were trained using simulated bulk RNA-sequencing profiles generated from each individual's single-nuclear RNA-sequencing data; 1000 simulated bulk samples were prepared per subject, using 1000 nuclei per sample. Once trained, Scaden was used to predict cell-type proportions for bulk RNA-sequencing data derived from the same individuals. Single-nuclear cell-type proportions were calculated per individual, by dividing the number of cells assigned to a cell type by the total number of cells. Cell-type proportions are summarised by cell type in each disease group. Cell types are coloured by their overarching cell-type class."}
+
+results$ranks %>% 
+  ggplot(aes(x = fct_relevel(Celltype,
+                             results$ranks %>% 
+                               dplyr::filter(source == "Scaden deconvolution" & cells == 100 & samples == 1000) %>%  
+                               arrange(Celltype_class, Celltype) %>% 
+                               .[["Celltype"]] %>% 
+                               unique() %>% 
+                               as.character()), 
+             y = cell_type_proportion, 
+             fill = Celltype_class)) + 
+  geom_boxplot() +
+  facet_grid(Disease_Group ~ source) +
+  ylim(0,100) +
+  scale_fill_manual(values = pal_npg("nrc", alpha = 1)(10)[c(4,2,1,6,3,10)]) +
+  labs(x = "", y = "Cell type proportion", fill = "Cell-type class") + 
+  theme_rhr 
+
+```
+
+- Looking at control populations, oligodendrocytes come out as the top glial cell type by proportions using both snRNA-seq-derived proportions and scaden predictions.
+- Notably, looking at both snRNA-seq-derived proportions and scaden predictions the microglial population is small in controls (< expected 10%). 
+- Vascular cells have very low proportions according to snRNA-seq proportions, while scaden predicts higher proportions.
+- What is reassuring with scaden predictions is that we do see an increase in microglia numbers in disease groups, which correlates with some of the enriched pathways that are appearing in diffential gene/splicing analyses e.g. immune response, immune cell migration, transendothelial migration etc.
+
+## Glia-to-neuron ratios
+```{r glia-neuron-ratio, echo = F, fig.cap="Ratio of glia-to-neurons and non-neurons-to-neurons across disease groups, as calculated using cell-type proportions derived from scaden deconvolution predictions or single-nuclear cell-type assignments. Scaden neural networks were trained using simulated bulk RNA-sequencing profiles generated from each individual's single-nuclear RNA-sequencing data; 1000 simulated bulk samples were prepared per subject, using 100 nuclei per sample."}
+
+results$ratios %>% 
+  ggplot(aes(x = Disease_Group, y = value)) + 
+  geom_boxplot(aes(fill = ratio)) + 
+  geom_hline(yintercept = 1.5, linetype = 2, colour = "black") + 
+  facet_wrap(~ source) +
+  labs(x = "", y = "Value of ratio", fill = "Type of ratio") + 
+  coord_cartesian(ylim = c(0,50)) +
+  theme_rhr
+
+```
+
+```{r median-values}
+# Median values
+results$ratios %>%
+  dplyr::group_by(source, Disease_Group, ratio) %>%
+  dplyr::summarise(median = median(value))
+```
+- Median glia:neuron ratio for controls calculated using scaden predictions is 2.60, compared to the median 0.69 for controls using snRNA-seq-determined proportions. This is similar to what was observed for the same set of parameters in the old run (median for control = 2.11)
+
+## Cell-type proportions relative to control
+```{r scaden-rel-to-control-plot, fig.height = 5, fig.cap="Cell-type proportions derived from scaden deconvolution. Scaden neural networks were trained using simulated bulk RNA-sequencing profiles generated from each individual's single-nuclear RNA-sequencing data; 1000 simulated bulk samples were prepared per subject, using 1000 nuclei per sample. Once trained, Scaden was used to predict cell-type proportions for bulk RNA-sequencing data derived from the same individuals. Cell-type proportions are grouped by cell type and disease status and displayed relative to the median of controls (within a cell type)."}
+
+results$ranks %>%
+  dplyr::filter(source == "Scaden deconvolution") %>% 
+  dplyr::select(-rank_within_sample, -cells, -samples, -source) %>% 
+  tidyr::spread(key = Disease_Group, value = cell_type_proportion) %>% 
+  dplyr::group_by(Celltype) %>% 
+  dplyr::mutate(median_control = median(Control, na.rm = T)) %>%
+  dplyr::ungroup() %>% 
+  # Calculate fold change from reference, controls, by dividing each column by median_control
+  dplyr::mutate_at(.vars = vars("Control", "PD", "PDD", "DLB"), .funs = function(x){x/.[["median_control"]]}) %>% 
+  dplyr::select(-median_control) %>% 
+  tidyr::gather(key = "Disease_Group", value = "cell_type_proportion_relative_to_control", -sample_id, -Celltype, -Celltype_class) %>% 
+  # dplyr::filter(Celltype == "Excitatory") %>% 
+  ggplot(aes(x = Celltype, 
+             y = cell_type_proportion_relative_to_control, 
+             fill = fct_relevel(Disease_Group,
+                                c("Control", "PD", "PDD", "DLB")))) + 
+  geom_boxplot() +
+  # scale_fill_manual(values = pal_jco("default", alpha = 0.9)(10)[c(3,9,1,2)]) +
+  scale_fill_manual(values = c("#868686", "#c4ebe3", "#73cab9", "#19967d")) +
+  coord_cartesian(ylim = c(0,8)) +
+  labs(x = "Cell type", y = "Cell type proportion relative to controls", fill = "Disease group") + 
+  theme_rhr
+
+
+
+``` 
+
+### Kruskal test
+```{r kruskal-test}
+results$ranks %>%
+  dplyr::filter(source == "Scaden deconvolution" & Celltype!= "Unclassified" & cells == "1000" & samples == "1000") %>% 
+  dplyr::group_by(Celltype) %>% 
+  dplyr::do(kruskal.test(x= .$cell_type_proportion, g = .$Disease_Group) %>% 
+              broom::tidy()) %>%
+  dplyr::arrange(p.value) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+### Wilcoxon rank-sum test results
+- Use Wilcoxon rank-sum test (non-parametric test), due to non-normal distribution. Also tends to have more power when data contains extreme outliers. 
+    - FDR correction per cell type i.e. correcting for number of comparisons between disease groups (6). Significance is FDR < 0.05, and nominal significance is FDR < 0.1.
+    - Microglia found to have a nominally significant higher proportion in all three disease states compared to control (PD, FDR = 0.061; PDD, FDR = 0.061; DLB, FDR = 0.061).
+    - OPCs found to have a significantly higher proportion in DLB compared to control, PD and PDD. Also, nominally significant high proportion of OPCs in PDD compared to control (FDR = 0.078).
+    - Vascular cells found to have a significantly higher proportion in DLB compared to control and PD. Also, nominally significant higher proportion of OPCs in DLB compared to PDD (FDR = 0.082), PD compared to control (FDR = 0.099) and PDD compared to control (FDR = 0.099).
+- While excitatory neurons are not significantly different between groups, median proportion in PDD and DLB is lower than in controls and PD. This might be expected in the anterior cingulate cortex, given that PDD and DLB are classed as dementias i.e. might expect neuronal loss in cortical regions.  
+    
+```{r wilcox-test}
+results$ranks %>%
+  dplyr::filter(source == "Scaden deconvolution" & Celltype!= "Unclassified" & cells == "1000" & samples == "1000") %>% 
+  dplyr::group_by(Celltype) %>% 
+  dplyr::do(pairwise.wilcox.test(x= .$cell_type_proportion, g = .$Disease_Group, p.adjust.method = "none", paired = FALSE) %>% 
+              broom::tidy()) %>%
+  dplyr::mutate(fdr = p.adjust(p.value, method = "BH")) %>%
+  dplyr::arrange(fdr) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+### Covariate correction
+- Worth checking whether results are impacted if we correct for RIN (given correlations between some neuronal proportions and RIN).
+
+```{r covar-correction}
+results_lm <- results$ranks %>%
+  dplyr::inner_join(sample_info %>% 
+                      dplyr::select(sample_id, RIN = RINe_bulkRNA_Tapestation)) %>%
+  dplyr::filter(source == "Scaden deconvolution" & Celltype!= "Unclassified" & cells == "1000" & samples == "1000") %>% 
+  dplyr::group_by(Celltype) %>% 
+  dplyr::do(lm(cell_type_proportion ~ Disease_Group + RIN, data = .) %>% 
+       broom::tidy()) %>% 
+  dplyr::mutate(fdr = p.adjust(p.value, method = "BH"))
+
+results_lm %>%
+  dplyr::arrange(Celltype) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- Following correction for RIN, we still see a significant effect of disease groups PDD and DLB on microglial and vascular proportions and of disease group DLB on OPC proportions.
+
+```{r covar-correction-plot, fig.height=8, fig.cap = "Plot of regression coefficient estimates for each cell type. Linear regression models were fitted separately for each cell type. Whiskers span 95% confidence interval."}
+
+results_lm %>% 
+  dplyr::rename(model = Celltype) %>% 
+  dotwhisker::small_multiple(dot_args = list(colour = "#888888", size = 0.5)) +
+  geom_point(data = subset(results_lm, fdr < 0.1 & term != "(Intercept)"), aes(x = Celltype, y = estimate), colour = "black", pch = 19, size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "", y = "Coefficient estimate") +
+  coord_flip() +
+  theme_rhr +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "none")
+
+```
+
+
+## Cell-type proportions relative to excitatory neurons
+```{r scaden-rel-to-excitatory-neurons, fig.height = 8, fig.cap="Cell-type proportions derived from scaden deconvolution either (a) displayed relative to the median proportion of excitatory neurons in controls or (b) not relative to anything. Scaden neural networks were trained using simulated bulk RNA-sequencing profiles generated from each individual's single-nuclear RNA-sequencing data; 1000 simulated bulk samples were prepared per subject, using 1000 nuclei per sample. Once trained, Scaden was used to predict cell-type proportions for bulk RNA-sequencing data derived from the same individuals."}
+
+a <- results$ranks %>%
+  dplyr::filter(source == "Scaden deconvolution") %>% 
+  dplyr::select(-rank_within_sample, -cells, -samples, -source, -Celltype_class) %>% 
+  dplyr::mutate(median_neuron = results$ranks %>%
+                  dplyr::filter(source == "Scaden deconvolution", Celltype == "Excitatory", Disease_Group == "Control") %>% 
+                  dplyr::group_by(Celltype) %>% 
+                  dplyr::summarise(median_neurons = median(cell_type_proportion)) %>% 
+                  .[["median_neurons"]],
+                relative_cell_type_proportion = cell_type_proportion/median_neuron) %>% 
+  ggplot(aes(x = Celltype, 
+             y = relative_cell_type_proportion, 
+             fill = fct_relevel(Disease_Group,
+                                c("Control", "PD", "PDD", "DLB")))) + 
+  geom_boxplot() +
+  # scale_fill_manual(values = pal_jco("default", alpha = 0.9)(10)[c(3,9,1,2)]) +
+  scale_fill_manual(values = c("#868686", "#c4ebe3", "#73cab9", "#19967d")) +
+  labs(x = "Cell type", y = "Cell type proportion relative to\n median of excitatory neurons in controls", fill = "Disease group") + 
+  theme_rhr
+
+b <- results$ranks %>%
+  dplyr::filter(source == "Scaden deconvolution") %>% 
+  ggplot(aes(x = Celltype, 
+             y = cell_type_proportion, 
+             fill = fct_relevel(Disease_Group,
+                                c("Control", "PD", "PDD", "DLB")))) + 
+  geom_boxplot() +
+  # scale_fill_manual(values = pal_jco("default", alpha = 0.9)(10)[c(3,9,1,2)]) +
+  scale_fill_manual(values = c("#868686", "#c4ebe3", "#73cab9", "#19967d")) +
+  labs(x = "Cell type", y = "Cell type proportion", fill = "Disease group") + 
+  theme_rhr
+
+ggarrange(a, b,
+          nrow = 2,
+          labels = c("a", "b"),
+          common.legend = T)
+
+``` 
+
+- Normalising to median of control excitatory neurons is essentially the same as plotting raw cell-type proportions i.e. preserves the order of the cell type populations (e.g. oligos as biggest population, followed by excitatory neurons/astros)
+- Both plots highlight the same trends as previously e.g. increased proportion of vascular cells and microglia across disease groups.
+- Note that we cannot actually identify whether an increased proportion is due an increase in the absolute numbers of a cell type of whether it is due to a decrease in the absolute numbers of another cell type e.g. increased vascular proportion in DLB could be due to an increased number of vascular cells, or alternatively a loss of astrocytes/excitatory neurons.
+
+# Session info
+```{r}
+sessionInfo()
+```
+
+

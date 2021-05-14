@@ -1,0 +1,287 @@
+---
+title: "Data transfer to EGA"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: show
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+
+library(ggplot2) # For plotting
+library(tidyverse) # For tidy manipulation of data
+library(stringr) # For string manipulation
+
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+
+# Set defaults for ggplots 
+theme_rhr <- theme_set(
+  theme_bw(base_family = "Helvetica",
+           base_size = 10) + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+        axis.title.y = element_text(vjust = 0.6),
+        panel.spacing = unit(0.1, "lines"))
+)
+
+```
+
+> Aim: transfer of data to EGA
+
+# File paths for workflow
+
+```{r file-paths}
+
+source(here::here("R", "file_paths.R"))
+
+path_for_tables <- file.path(path_to_wd, "paper_draft/tables")
+path_to_encrypted_files <- file.path(path_to_bulk_seq_data, "QC/fastp_encrypted")
+
+```
+
+# File preparation and upload {.tabset}
+
+## Accepted file formats
+We will be uploading fastqs (https://ega-archive.org/submission/sequence) that have had adapters removed and have been through QC (as per this [script](https://github.com/RHReynolds/RNAseqProcessing/blob/master/QC/prealignmentQC_fastp_PEadapters.R)).
+
+Requirements include:
+
+- Data files should be de-multiplexed prior to submission so that each run is submitted with files containing data for a single sample only.
+- Quality scores must be in [Phred](https://en.wikipedia.org/wiki/Phred_quality_score) scale. For example, quality scores from early Solexa pipelines must be converted to use this scale. Both ASCII and space delimitered decimal
+encoding of quality scores are supported. We will automatically detect the Phred quality offset of either 33 or 64.
+- No technical reads (adapters, linkers, barcodes) are allowed.
+- Single reads must be submitted using a single Fastq file and can be submitted with or without read names.
+- Paired reads must split and submitted using either one or two Fastq files. The read names must have a suffix identifying the first and second read from the pair, for example '/1' and '/2'.
+- The first line for each read must start with '@'.
+- The base calls and quality scores must be separated by a line starting with '+'.
+- The Fastq files must be compressed using gzip or bzip2.
+
+## Encryption
+1. Download EGACryptor and unzip
+
+```{bash download-egacryptor, eval = F}
+cd /home/rreynolds/tools/
+wget https://ega-archive.org/files/EgaCryptor.zip
+unzip EgaCryptor.zip
+
+```
+
+2. Navigate to folder containing files for upload and create new directory for encrypted files. Copy files to be encrypted into new directory.
+
+```{bash copy-files, eval = F}
+cd /data/RNAseq_PD/tissue_polyA_samples/QC
+mkdir fastp_encrypted
+cp /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM*.fastq.gz /data/RNAseq_PD/tissue_polyA_samples/QC/fastp_encrypted/
+
+```
+
+3. Using the file EgaCryptor.jar (the following command will encrypt all files from the specified folder), the files are encrypted. Will need to clarify in a readme.txt (or in the sample metadata) that naming for paired reads = R1 + R3. R2 = UMIs.
+
+```{bash encrypt-files, eval = F}
+# -i flag specifies input, while -o flag specifies output folder
+java -jar /home/rreynolds/tools/EGA-Cryptor-2.0.0/ega-cryptor-2.0.0.jar -i /data/RNAseq_PD/tissue_polyA_samples/QC/fastp_encrypted/ -o /data/RNAseq_PD/tissue_polyA_samples/QC/fastp_encrypted/
+
+```
+
+4. Remove copied fastq.gz files
+
+## Upload files
+
+1. Open a terminal and connect to EGA using ftp. Important to enable passive mode with the `-p` flag. (https://stackoverflow.com/questions/19516263/200-port-command-successful-consider-using-pasv-425-failed-to-establish-connec.
+
+```{bash access-ega, eval = F}
+# Enable passive 
+ftp -p ftp.ega.ebi.ac.uk
+
+```
+
+2. Enter your submission username and submission password.
+
+3. Type `binary` to enter binary mode for transfer (to see a list of available ftp commands type `help`). Type `prompt` to switch off confirmation for each file uploaded. Use  `mput` command to upload files.
+
+```{bash upload-files, eval = F}
+binary
+prompt
+mput *
+
+```
+
+4. Use `bye` command to exit the ftp client.
+
+# Submitting metadata {.tabset}
+
+## Instructions
+Followed all instructions here: https://ega-archive.org/submission/tools/submitter-portal.
+
+## Sample registration
+Samples must be registered with the following information:
+
+- title
+- alias*
+- description
+- subjectId*	
+- bioSample
+- caseOrControl	
+- gender*	
+- organismPart	
+- cellLine
+- region
+- phenotype*
+
+Field with an asterisk **must** be filled in. These fields can be populated using a .csv. Thus, used the sample info we have to create this .csv.
+
+```{r create-sample-csv}
+
+sample_info <- 
+  readr::read_csv(
+    file.path(path_for_tables, "/", "sample_info_bulk_seq_metrics.csv")
+  )
+
+ega_sample_info <- 
+  sample_info %>% 
+  dplyr::filter(sent_to_bulk_seq == "yes") %>% 
+  dplyr::mutate(
+    title = "",
+    alias = sample_id,
+    description = "",
+    subjectId = sample_id,
+    bioSample = "",
+    caseOrControl =
+      case_when(
+        disease_group == "Control" ~ "control",
+                TRUE ~ "case"
+        ),
+    gender = 
+      case_when(
+        Sex == "F" ~ "female",
+        Sex == "M" ~ "male"
+      ),
+    organismPart = "anterior cingulate cortex",
+    cellLine = "",
+    region = "",
+    phenotype = 
+      case_when(
+        disease_group == "PD" ~ "Parkinson's disease",
+        disease_group == "PDD" ~ "Parkinson's disease with dementia",
+        disease_group == "DLB" ~ "Dementia with Lewy bodies",
+        TRUE ~ disease_group
+        )
+  ) %>% 
+  dplyr::select(
+    title, alias, description, subjectId, bioSample, caseOrControl, gender, organismPart, cellLine, region, phenotype
+  )
+
+ega_sample_info
+
+```
+
+```{r, export-sample-csv, eval = F}
+
+readr::write_csv(
+  ega_sample_info,
+  file.path(path_to_results, "ega_sample_info.csv")
+)
+
+```
+
+## Sample and file linkage
+
+Samples and files have to be linked. Fields can be populated using a .csv with the following column names:
+
+- Sample alias
+- First Fastq File	
+- First Checksum	
+- First Unencrypted checksum	
+- Second Fastq File	
+- Second Checksum	
+- Second Unencrypted checksum
+
+```{r}
+
+file_df <- 
+  tibble(
+    file_name = list.files(path_to_encrypted_files),
+    file_type = list.files(path_to_encrypted_files) %>% 
+      str_remove(".*.fastq."),
+    read = case_when(
+      str_detect(list.files(path_to_encrypted_files), "R1") ~ "R1",
+      str_detect(list.files(path_to_encrypted_files), "R3") ~ "R2"
+    ),
+    sample_id = list.files(path_to_encrypted_files) %>% 
+      str_remove("NM...._") %>% 
+      str_remove("_.*")
+  ) %>% 
+  tidyr::pivot_wider(
+    names_from = c(file_type, read),
+    values_from = file_name
+  )
+
+sample_file_link <- 
+  tibble(.rows = nrow(file_df)) %>% 
+  dplyr::mutate(
+    `Sample alias` = file_df$sample_id,
+    `First Fastq File` = file_df$gz.gpg_R1,	
+    `First Checksum` = "",	
+    `First Unencrypted checksum` = "",	
+    `Second Fastq File` = file_df$gz.gpg_R2,	
+    `Second Checksum` = "",	
+    `Second Unencrypted checksum` = ""
+  )
+  
+for(i in 1:nrow(file_df)){
+ 
+  sample_file_link[i, ] <-
+    sample_file_link %>% 
+    dplyr::slice(i) %>% 
+    dplyr::mutate(
+      `First Checksum` = 
+        read_lines(
+          file.path(path_to_encrypted_files, file_df$gz.gpg.md5_R1[i])
+        ),	
+      `First Unencrypted checksum` = 
+        read_lines(
+          file.path(path_to_encrypted_files, file_df$gz.md5_R1[i])
+        ),	
+      `Second Checksum` = 
+        read_lines(
+          file.path(path_to_encrypted_files, file_df$gz.gpg.md5_R2[i])
+        ),	
+      `Second Unencrypted checksum` = 
+        read_lines(
+          file.path(path_to_encrypted_files, file_df$gz.md5_R2[i])
+        )
+    )
+  
+}
+
+sample_file_link
+
+```
+
+```{r, export-sample-file-csv, eval = F}
+
+readr::write_csv(
+  sample_file_link,
+  file.path(path_to_results, "ega_sample_file_linkage.csv")
+)
+
+```
+
+# Session info
+
+```{r reproducibility, echo = FALSE}
+# Session info
+library("sessioninfo")
+options(width = 120)
+session_info()
+```

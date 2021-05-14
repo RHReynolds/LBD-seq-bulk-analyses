@@ -1,0 +1,165 @@
+---
+title: 'STAR: splice junction filtering'
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: show
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+library(DT)
+library(here)
+library(tidyverse)
+library(stringr)
+library(readxl)
+library(devtools)
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+# Aim
+1. Establish need for filtering in splice junction data.
+2. Output SJ.out.tab file for use in 2nd pass mapping.
+
+# File paths/files for workflow
+
+```{r file-paths, results = F}
+
+source(here::here("R", "load_sj_df.R"))
+source(here::here("R", "get_fastp_QC_df.R"))
+source(here::here("R", "file_paths.R"))
+
+path_to_fastp <- file.path(path_to_bulk_seq_data, "QC/fastp/")
+path_to_sj <- file.path(path_to_bulk_seq_data, "STAR/SJ_out_1pass")
+
+# Load QC metrics and SJ files
+QC_tissue <- 
+  get_fastp_QC_df(fastp_json_dir_paths = path_to_fastp) %>% 
+  dplyr::select(SampleID, reads_unknown_insert_size_percent, everything())
+
+sj_df_tissue <- 
+  load_sj_df(sj_dir_path = path_to_sj) 
+
+```
+
+# Do we need to filter? {.tabset}
+- Based on Seb's experience of multi-sample 2-pass mapping, we know that STAR alignment cannot handle large SJ.out.tab (i.e. many junctions). This significantly slows the process, and in some cases, results in crashing of the alignment process. 
+- However, this was based on situations using more than > 24 samples. Some junctions may occur in multiple samples, therefore, it may be worth determining the number of unique junctions (i.e. unique with respect to genomic location). If many junctions are duplicated across samples, removing duplicates would reduce the total number of junctions inputted into 2-pass mapping making it possible to input all detected junctions into 2-pass mapping, as opposed to filtering.
+
+## Bulk tissue
+```{r unique-junctions}
+
+# Dataframe of unique junctions with respect to genomic location
+unique_junc_tiss <- sj_df_tissue %>% 
+  tidyr::unite(col = "junction", chr, intron_start, intron_end, sep = ":", remove = FALSE) %>% 
+  dplyr::group_by(junction) %>% 
+  dplyr::summarise(unique_reads_junction_across_all_samples = sum(unique_reads_junction)) %>% 
+  inner_join(sj_df_tissue %>% 
+               dplyr::select(-unique_reads_junction, -multi_map_reads_junction, -max_splice_alignment_overhang, -Sample) %>% 
+               tidyr::unite(col = "junction", chr, intron_start, intron_end, sep = ":", remove = FALSE) %>% 
+               distinct(junction, .keep_all = TRUE)) %>% 
+  dplyr::select(junction, chr, intron_start, intron_end, everything())
+
+```
+
+- Total number of unique (non-duplicated) junctions: `r unique_junc_tiss %>% nrow()`
+- Percentage of unique(non-duplicated) junctions not in annotation: `r (unique_junc_tiss %>% filter(in_annotation == 0) %>% nrow()/unique_junc_tiss %>% nrow()) * 100`
+- The proportion of unique junctions currently not in annotation is quite high. How does the distribution of reads mapping to annotated/unannotated compare?
+```{r read-distribution-table}
+
+sj_df_tissue %>% 
+  dplyr::mutate(in_annotation = ifelse(in_annotation == 1, TRUE, FALSE)) %>% 
+  dplyr::group_by(in_annotation) %>% 
+  dplyr::summarise(min_unique_reads_junction = min(unique_reads_junction),
+                   max_unique_reads_junction = max(unique_reads_junction))
+
+```
+
+```{r read-distribution-plot, fig.cap="Distribution of reads across unannotated (false) and annotated (true) junctions across all bulk tissue samples. Y-axis limited to 100 and outliers hidden for illustration purposes."}
+
+ggplot(data = sj_df_tissue %>% 
+         dplyr::mutate(in_annotation = ifelse(in_annotation == 1, TRUE, FALSE)), 
+       aes(x = in_annotation, y = unique_reads_junction, fill = in_annotation)) + 
+  geom_boxplot(outlier.shape = NA) +
+  ylim(0,100) +
+  labs(y = "Number of junctions reads") +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 8),
+        axis.text.x = element_text(size = 8),
+        axis.title = element_text(size = 8, face = "bold"),
+        strip.text = element_text(size = 8, face = "bold"))
+
+```
+
+- Distributions are very different, as one might expect, with a shift toward higher numbers of junction reads in the annotated distribution.
+- Also, if we look at the number of junction reads mapping to unannotated and annotated junctions in each sample compared to the total number of reads (junction and normal) in a sample following QC, we observe a positive correlation (as would be expected).
+```{r relationship-between-junction-reads-and-read-depth, fig.cap="**Figure:** Comparison of total number of reads passing QC vs. total number of junction reads (coloured by whether or not they are in annotation). Each individual point represents one bulk tissue sample."}
+
+# Relationship between junctions and read depth
+summary_sj <- sj_df_tissue %>% 
+  dplyr::mutate(in_annotation = ifelse(in_annotation == 1, TRUE, FALSE)) %>% 
+  dplyr::group_by(Sample, in_annotation) %>% 
+  dplyr::summarise(n_junction_reads = sum(unique_reads_junction)) %>% 
+  dplyr::mutate(sample_shortened = str_replace(Sample, "_.*", "")) %>% 
+  inner_join(QC_tissue %>% dplyr::select(SampleID, after_filtering_total_reads), by = c("sample_shortened" = "SampleID")) %>% 
+  dplyr::select(-sample_shortened)
+
+ggplot(data = summary_sj) +
+  geom_point(aes(x = after_filtering_total_reads, y = n_junction_reads, colour = in_annotation)) +
+  facet_wrap(~in_annotation, scales = "free_y") +
+  labs(x = "Total number of reads after QC", y = "Total number of junction reads") +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 8),
+        axis.text.x = element_text(size = 8),
+        axis.title = element_text(size = 8, face = "bold"),
+        strip.text = element_text(size = 8, face = "bold"))
+
+```
+
+- Note that a high proportion of the total number of junction reads map to particular junctions (see below table). E.g. ~0.7% of the total junction reads map to an area in chromosome 18 wherein in MBP (myelin basic protein) is located.
+```{r percent-reads-mapping-to-junc}
+
+# Percentage of unique reads mapping to unique junctions in relation to total number of unique reads across all junctions
+unique_junc_tiss %>%
+  dplyr::mutate(total_unique_reads_junction = sum(unique_reads_junction_across_all_samples),
+                percentage_of_total_unique_reads_junction = (unique_reads_junction_across_all_samples/total_unique_reads_junction) * 100) %>% 
+  dplyr::select(-total_unique_reads_junction) %>% 
+  arrange(desc(percentage_of_total_unique_reads_junction))
+
+```
+
+- Looking at more of these junctions and the genes within the regions we find:
+    - 18:76980472-76984774 --> Various forms of MBP (myelin basic protein)
+    - 11:61965113-61965368 --> Various forms of FTH1 (ferritin heavy chain)
+    - 8:27598251-27598459 --> Various forms of CLU (clusterin)
+    - 19:48966407-48966582 --> FTL (ferritin light chain)
+    - 12:6537997-6538100 --> GAPDH
+    - 6:73518265-73518353 --> EEF1A1 (eukaryotic translation elongation factor 1 alpha 1)
+    - 2:216500032-216501340 --> RRPL37A (ribosomal protein L37a)
+    - 17:44908150-44910614 --> GFAP
+- These junctions reflect genes that we might expect to be highly expressed (e.g. GAPDH). Interesting to see MBP and GFAP. Given that majority of samples here are from disease states, we might expect to see GFAP amongst highly expressed proteins.
+
+## Conclusions
+- Based on the number of non-duplicated junctions in the bulk tissue no real need for filtering. Small enough that it should be possible to run mapping using the non-duplicated junctions (junctions derived from the Undetermined sample not included).
+
+# Outputting SJ.out.tab files
+```{bash, eval = F}
+nohup Rscript \
+/home/rreynolds/packages/RNAseqProcessing/alignment/STAR_splice_junction_merge.R \
+/data/RNAseq_PD/tissue_polyA_samples/STAR/SJ_out_1pass \
+-o /data/RNAseq_PD/tissue_polyA_samples/STAR/ \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/PD_tissue_polyA_SJ_filtering.log&
+
+```
+
+
+

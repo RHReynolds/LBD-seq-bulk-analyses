@@ -1,0 +1,2374 @@
+nohup: ignoring input
+-- Attaching packages --------------------------------------- tidyverse 1.2.1 --
+v ggplot2 3.1.1     v purrr   0.3.2
+v tibble  2.1.1     v dplyr   0.8.1
+v tidyr   0.8.3     v stringr 1.4.0
+v readr   1.3.1     v forcats 0.4.0
+-- Conflicts ------------------------------------------ tidyverse_conflicts() --
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+[1] "/data/RNAseq_PD/tissue_polyA_samples/QC/fastp directory already exists.."
+[1] "/data/RNAseq_PD/tissue_polyA_samples/QC/multiqc directory already exists.."
+Warning message:
+`data_frame()` is deprecated, use `tibble()`.
+This warning is displayed once per session. 
+[1] "2019-07-01 09:15:33 - Performing QC and trimming for samples: PD332, PD341, PD732, PDC05, PD566, PD366, PD413, PDC22, PD706, PD415, PD416, PDC34, PD563, PD523, PDC87, PD163, PD678, PD747, PD115, PD666, PDC91, PD294, PD531, PD683, Undetermined"
+[1] "2019-07-01 09:15:33 - QC and Trimming: PD332"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 161440293
+total bases: 16144029300
+Q20 bases: 15848144623(98.1672%)
+Q30 bases: 15335828041(94.9938%)
+
+Read2 before filtering:
+total reads: 161440293
+total bases: 16144029300
+Q20 bases: 15665624807(97.0366%)
+Q30 bases: 14918521488(92.4089%)
+
+Read1 after filtering:
+total reads: 159970576
+total bases: 15782860659
+Q20 bases: 15533301519(98.4188%)
+Q30 bases: 15045156252(95.3259%)
+
+Read2 aftering filtering:
+total reads: 159970576
+total bases: 15784082782
+Q20 bases: 15393730332(97.5269%)
+Q30 bases: 14682386338(93.0202%)
+
+Filtering result:
+reads passed filter: 319941152
+reads failed due to low quality: 2695372
+reads failed due to too many N: 8904
+reads failed due to too short: 235158
+reads with adapter trimmed: 32383947
+bases trimmed due to adapters: 431774625
+reads corrected by overlap analysis: 9207202
+bases corrected by overlap analysis: 17913442
+
+Duplication rate: 56.3233%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD332_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD332_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3327_PD332_A2B1_GM-T_S1_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3327_PD332_A2B1_GM-T_S1_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD332_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD332_fastp.json --report_title PD332 --thread 16 
+fastp v0.20.0, time used: 1737 seconds
+[1] "2019-07-01 09:44:30 - QC and Trimming: PD341"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 193260831
+total bases: 19326083100
+Q20 bases: 19035392445(98.4959%)
+Q30 bases: 18475185715(95.5972%)
+
+Read2 before filtering:
+total reads: 193260831
+total bases: 19326083100
+Q20 bases: 18897948630(97.7847%)
+Q30 bases: 18157201308(93.9518%)
+
+Read1 after filtering:
+total reads: 191978162
+total bases: 18871268387
+Q20 bases: 18614761270(98.6408%)
+Q30 bases: 18076135134(95.7865%)
+
+Read2 aftering filtering:
+total reads: 191978162
+total bases: 18872258944
+Q20 bases: 18520212386(98.1346%)
+Q30 bases: 17813382108(94.3892%)
+
+Filtering result:
+reads passed filter: 383956324
+reads failed due to low quality: 2239254
+reads failed due to too many N: 10326
+reads failed due to too short: 315758
+reads with adapter trimmed: 49167273
+bases trimmed due to adapters: 658136941
+reads corrected by overlap analysis: 8784378
+bases corrected by overlap analysis: 15437046
+
+Duplication rate: 32.8419%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD341_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD341_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3328_PD341_A2B2_GM-T_S2_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3328_PD341_A2B2_GM-T_S2_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD341_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD341_fastp.json --report_title PD341 --thread 16 
+fastp v0.20.0, time used: 1949 seconds
+[1] "2019-07-01 10:16:59 - QC and Trimming: PD732"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 199340601
+total bases: 19934060100
+Q20 bases: 19644201661(98.5459%)
+Q30 bases: 19068242996(95.6566%)
+
+Read2 before filtering:
+total reads: 199340601
+total bases: 19934060100
+Q20 bases: 19479423434(97.7193%)
+Q30 bases: 18692206855(93.7702%)
+
+Read1 after filtering:
+total reads: 198007695
+total bases: 19614595495
+Q20 bases: 19353437712(98.6686%)
+Q30 bases: 18794380835(95.8183%)
+
+Read2 aftering filtering:
+total reads: 198007695
+total bases: 19615425915
+Q20 bases: 19235806060(98.0647%)
+Q30 bases: 18476534738(94.1939%)
+
+Filtering result:
+reads passed filter: 396015390
+reads failed due to low quality: 2292814
+reads failed due to too many N: 11256
+reads failed due to too short: 361742
+reads with adapter trimmed: 30635901
+bases trimmed due to adapters: 375512900
+reads corrected by overlap analysis: 8238372
+bases corrected by overlap analysis: 13921573
+
+Duplication rate: 28.5424%
+
+Insert size peak (evaluated by paired-end reads): 127
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD732_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD732_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3329_PD732_A2B2_GM-T_S3_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3329_PD732_A2B2_GM-T_S3_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD732_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD732_fastp.json --report_title PD732 --thread 16 
+fastp v0.20.0, time used: 2083 seconds
+[1] "2019-07-01 10:51:42 - QC and Trimming: PDC05"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 224384050
+total bases: 22438405000
+Q20 bases: 22111790386(98.5444%)
+Q30 bases: 21462397399(95.6503%)
+
+Read2 before filtering:
+total reads: 224384050
+total bases: 22438405000
+Q20 bases: 21988393796(97.9945%)
+Q30 bases: 21192068882(94.4455%)
+
+Read1 after filtering:
+total reads: 222832687
+total bases: 21929414792
+Q20 bases: 21636987380(98.6665%)
+Q30 bases: 21009785352(95.8064%)
+
+Read2 aftering filtering:
+total reads: 222832687
+total bases: 21930605184
+Q20 bases: 21570511287(98.358%)
+Q30 bases: 20814513673(94.9108%)
+
+Filtering result:
+reads passed filter: 445665374
+reads failed due to low quality: 2594882
+reads failed due to too many N: 12382
+reads failed due to too short: 495462
+reads with adapter trimmed: 54073044
+bases trimmed due to adapters: 714023162
+reads corrected by overlap analysis: 9436380
+bases corrected by overlap analysis: 16072493
+
+Duplication rate: 25.4734%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC05_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC05_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3330_PDC05_A1A2_GM-T_S4_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3330_PDC05_A1A2_GM-T_S4_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC05_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC05_fastp.json --report_title PDC05 --thread 16 
+fastp v0.20.0, time used: 2219 seconds
+[1] "2019-07-01 11:28:41 - QC and Trimming: PD566"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 200123521
+total bases: 20012352100
+Q20 bases: 19633715556(98.108%)
+Q30 bases: 19000147733(94.9421%)
+
+Read2 before filtering:
+total reads: 200123521
+total bases: 20012352100
+Q20 bases: 19404113612(96.9607%)
+Q30 bases: 18499196611(92.4389%)
+
+Read1 after filtering:
+total reads: 197887380
+total bases: 19435129604
+Q20 bases: 19121835702(98.388%)
+Q30 bases: 18523286258(95.3083%)
+
+Read2 aftering filtering:
+total reads: 197887380
+total bases: 19437017687
+Q20 bases: 18962654081(97.5595%)
+Q30 bases: 18110430522(93.1749%)
+
+Filtering result:
+reads passed filter: 395774760
+reads failed due to low quality: 3972078
+reads failed due to too many N: 11000
+reads failed due to too short: 489204
+reads with adapter trimmed: 50861043
+bases trimmed due to adapters: 708929467
+reads corrected by overlap analysis: 12518806
+bases corrected by overlap analysis: 24703612
+
+Duplication rate: 41.4287%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD566_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD566_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3331_PD566_A1B4_GM-T_S5_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3331_PD566_A1B4_GM-T_S5_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD566_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD566_fastp.json --report_title PD566 --thread 16 
+fastp v0.20.0, time used: 2077 seconds
+[1] "2019-07-01 12:03:18 - QC and Trimming: PD366"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 190011262
+total bases: 19001126200
+Q20 bases: 18626037499(98.026%)
+Q30 bases: 18007502319(94.7707%)
+
+Read2 before filtering:
+total reads: 190011262
+total bases: 19001126200
+Q20 bases: 18435321462(97.0223%)
+Q30 bases: 17580370898(92.5228%)
+
+Read1 after filtering:
+total reads: 187849609
+total bases: 18427872876
+Q20 bases: 18120704899(98.3331%)
+Q30 bases: 17537795972(95.1699%)
+
+Read2 aftering filtering:
+total reads: 187849609
+total bases: 18430081253
+Q20 bases: 17984931340(97.5847%)
+Q30 bases: 17179474357(93.2143%)
+
+Filtering result:
+reads passed filter: 375699218
+reads failed due to low quality: 3848346
+reads failed due to too many N: 10254
+reads failed due to too short: 464706
+reads with adapter trimmed: 50704112
+bases trimmed due to adapters: 716219092
+reads corrected by overlap analysis: 12091312
+bases corrected by overlap analysis: 23909932
+
+Duplication rate: 39.9825%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD366_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD366_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3332_PD366_A2B3_GM-T_S6_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3332_PD366_A2B3_GM-T_S6_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD366_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD366_fastp.json --report_title PD366 --thread 16 
+fastp v0.20.0, time used: 1895 seconds
+[1] "2019-07-01 12:34:54 - QC and Trimming: PD413"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 200718065
+total bases: 20071806500
+Q20 bases: 19773977533(98.5162%)
+Q30 bases: 19206345674(95.6882%)
+
+Read2 before filtering:
+total reads: 200718065
+total bases: 20071806500
+Q20 bases: 19647342107(97.8853%)
+Q30 bases: 18927227039(94.2976%)
+
+Read1 after filtering:
+total reads: 199148855
+total bases: 19632309672
+Q20 bases: 19369196762(98.6598%)
+Q30 bases: 18822702836(95.8762%)
+
+Read2 aftering filtering:
+total reads: 199148855
+total bases: 19633503980
+Q20 bases: 19297401226(98.2881%)
+Q30 bases: 18613226087(94.8034%)
+
+Filtering result:
+reads passed filter: 398297710
+reads failed due to low quality: 2714558
+reads failed due to too many N: 11242
+reads failed due to too short: 412620
+reads with adapter trimmed: 42753451
+bases trimmed due to adapters: 571981467
+reads corrected by overlap analysis: 8571841
+bases corrected by overlap analysis: 15112190
+
+Duplication rate: 31.9075%
+
+Insert size peak (evaluated by paired-end reads): 118
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD413_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD413_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3333_PD413_A2B1_GM-T_S7_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3333_PD413_A2B1_GM-T_S7_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD413_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD413_fastp.json --report_title PD413 --thread 16 
+fastp v0.20.0, time used: 2076 seconds
+[1] "2019-07-01 13:09:30 - QC and Trimming: PDC22"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 189827559
+total bases: 18982755900
+Q20 bases: 18689380044(98.4545%)
+Q30 bases: 18144817649(95.5858%)
+
+Read2 before filtering:
+total reads: 189827559
+total bases: 18982755900
+Q20 bases: 18509297334(97.5058%)
+Q30 bases: 17759414848(93.5555%)
+
+Read1 after filtering:
+total reads: 187906334
+total bases: 18418697984
+Q20 bases: 18166253821(98.6294%)
+Q30 bases: 17648629915(95.8191%)
+
+Read2 aftering filtering:
+total reads: 187906334
+total bases: 18420114997
+Q20 bases: 18059319328(98.0413%)
+Q30 bases: 17356884767(94.2279%)
+
+Filtering result:
+reads passed filter: 375812668
+reads failed due to low quality: 3220784
+reads failed due to too many N: 10302
+reads failed due to too short: 611364
+reads with adapter trimmed: 53257705
+bases trimmed due to adapters: 747965863
+reads corrected by overlap analysis: 9824304
+bases corrected by overlap analysis: 17737362
+
+Duplication rate: 29.4932%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC22_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC22_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3334_PDC22_A1E3_GM-T_S8_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3334_PDC22_A1E3_GM-T_S8_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC22_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC22_fastp.json --report_title PDC22 --thread 16 
+fastp v0.20.0, time used: 2034 seconds
+[1] "2019-07-01 13:43:24 - QC and Trimming: PD706"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 186805467
+total bases: 18680546700
+Q20 bases: 18382254488(98.4032%)
+Q30 bases: 17834402762(95.4705%)
+
+Read2 before filtering:
+total reads: 186805467
+total bases: 18680546700
+Q20 bases: 18184209936(97.343%)
+Q30 bases: 17421406197(93.2596%)
+
+Read1 after filtering:
+total reads: 184899794
+total bases: 18267557918
+Q20 bases: 18008719802(98.5831%)
+Q30 bases: 17483441879(95.7076%)
+
+Read2 aftering filtering:
+total reads: 184899794
+total bases: 18268808553
+Q20 bases: 17883166401(97.8891%)
+Q30 bases: 17158931853(93.9247%)
+
+Filtering result:
+reads passed filter: 369799588
+reads failed due to low quality: 3412244
+reads failed due to too many N: 10218
+reads failed due to too short: 388884
+reads with adapter trimmed: 35794513
+bases trimmed due to adapters: 445731056
+reads corrected by overlap analysis: 9181835
+bases corrected by overlap analysis: 17316280
+
+Duplication rate: 43.5537%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD706_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD706_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3335_PD706_A1A1_GM-T_S9_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3335_PD706_A1A1_GM-T_S9_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD706_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD706_fastp.json --report_title PD706 --thread 16 
+fastp v0.20.0, time used: 1720 seconds
+[1] "2019-07-01 14:12:04 - QC and Trimming: PD415"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 161117201
+total bases: 16111720100
+Q20 bases: 15844346429(98.3405%)
+Q30 bases: 15359168546(95.3292%)
+
+Read2 before filtering:
+total reads: 161117201
+total bases: 16111720100
+Q20 bases: 15723141150(97.5882%)
+Q30 bases: 15091009435(93.6648%)
+
+Read1 after filtering:
+total reads: 159828542
+total bases: 15724151610
+Q20 bases: 15493134439(98.5308%)
+Q30 bases: 15028663077(95.5769%)
+
+Read2 aftering filtering:
+total reads: 159828542
+total bases: 15725565972
+Q20 bases: 15415859820(98.0306%)
+Q30 bases: 14817102789(94.223%)
+
+Filtering result:
+reads passed filter: 319657084
+reads failed due to low quality: 2296882
+reads failed due to too many N: 8768
+reads failed due to too short: 271668
+reads with adapter trimmed: 37954894
+bases trimmed due to adapters: 519171850
+reads corrected by overlap analysis: 8144887
+bases corrected by overlap analysis: 15508731
+
+Duplication rate: 39.0643%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD415_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD415_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3336_PD415_A2B2_GM-T_S10_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3336_PD415_A2B2_GM-T_S10_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD415_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD415_fastp.json --report_title PD415 --thread 16 
+fastp v0.20.0, time used: 1641 seconds
+[1] "2019-07-01 14:39:25 - QC and Trimming: PD416"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 169933617
+total bases: 16993361700
+Q20 bases: 16721623313(98.4009%)
+Q30 bases: 16222502918(95.4638%)
+
+Read2 before filtering:
+total reads: 169933617
+total bases: 16993361700
+Q20 bases: 16586957301(97.6085%)
+Q30 bases: 15918117219(93.6726%)
+
+Read1 after filtering:
+total reads: 168618149
+total bases: 16622838130
+Q20 bases: 16387154488(98.5822%)
+Q30 bases: 15908461481(95.7024%)
+
+Read2 aftering filtering:
+total reads: 168618149
+total bases: 16624122888
+Q20 bases: 16298379470(98.0405%)
+Q30 bases: 15662223460(94.2138%)
+
+Filtering result:
+reads passed filter: 337236298
+reads failed due to low quality: 2417768
+reads failed due to too many N: 9116
+reads failed due to too short: 204052
+reads with adapter trimmed: 36490105
+bases trimmed due to adapters: 479504462
+reads corrected by overlap analysis: 8191339
+bases corrected by overlap analysis: 15296917
+
+Duplication rate: 40.6474%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD416_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD416_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3337_PD416_A2D3_GM-T_S11_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3337_PD416_A2D3_GM-T_S11_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD416_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD416_fastp.json --report_title PD416 --thread 16 
+fastp v0.20.0, time used: 1663 seconds
+[1] "2019-07-01 15:07:09 - QC and Trimming: PDC34"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 176276526
+total bases: 17627652600
+Q20 bases: 17357632178(98.4682%)
+Q30 bases: 16839487108(95.5288%)
+
+Read2 before filtering:
+total reads: 176276526
+total bases: 17627652600
+Q20 bases: 17227626348(97.7307%)
+Q30 bases: 16530752980(93.7774%)
+
+Read1 after filtering:
+total reads: 175187639
+total bases: 17276798232
+Q20 bases: 17037248385(98.6135%)
+Q30 bases: 16536907304(95.7174%)
+
+Read2 aftering filtering:
+total reads: 175187639
+total bases: 17277717153
+Q20 bases: 16945522928(98.0773%)
+Q30 bases: 16277064565(94.2084%)
+
+Filtering result:
+reads passed filter: 350375278
+reads failed due to low quality: 1997228
+reads failed due to too many N: 9696
+reads failed due to too short: 170850
+reads with adapter trimmed: 38619885
+bases trimmed due to adapters: 484880883
+reads corrected by overlap analysis: 8687710
+bases corrected by overlap analysis: 15062370
+
+Duplication rate: 31.4315%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC34_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC34_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3338_PDC34_A1B3_GM-T_S12_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3338_PDC34_A1B3_GM-T_S12_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC34_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC34_fastp.json --report_title PDC34 --thread 16 
+fastp v0.20.0, time used: 1674 seconds
+[1] "2019-07-01 15:35:03 - QC and Trimming: PD563"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 195575638
+total bases: 19557563800
+Q20 bases: 19253977112(98.4477%)
+Q30 bases: 18689783441(95.5629%)
+
+Read2 before filtering:
+total reads: 195575638
+total bases: 19557563800
+Q20 bases: 19070672753(97.5105%)
+Q30 bases: 18290627761(93.522%)
+
+Read1 after filtering:
+total reads: 193886926
+total bases: 19113218679
+Q20 bases: 18848671737(98.6159%)
+Q30 bases: 18307389025(95.7839%)
+
+Read2 aftering filtering:
+total reads: 193886926
+total bases: 19114390589
+Q20 bases: 18733536180(98.0075%)
+Q30 bases: 17993539147(94.1361%)
+
+Filtering result:
+reads passed filter: 387773852
+reads failed due to low quality: 3108162
+reads failed due to too many N: 10928
+reads failed due to too short: 258334
+reads with adapter trimmed: 42041485
+bases trimmed due to adapters: 552122335
+reads corrected by overlap analysis: 9526458
+bases corrected by overlap analysis: 17010914
+
+Duplication rate: 35.1888%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD563_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD563_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3339_PD563_A1C1_GM-T_S13_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3339_PD563_A1C1_GM-T_S13_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD563_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD563_fastp.json --report_title PD563 --thread 16 
+fastp v0.20.0, time used: 1868 seconds
+[1] "2019-07-01 16:06:11 - QC and Trimming: PD523"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 177835756
+total bases: 17783575600
+Q20 bases: 17454708861(98.1507%)
+Q30 bases: 16884691699(94.9454%)
+
+Read2 before filtering:
+total reads: 177835756
+total bases: 17783575600
+Q20 bases: 17290421837(97.2269%)
+Q30 bases: 16510150926(92.8393%)
+
+Read1 after filtering:
+total reads: 176198631
+total bases: 17363106306
+Q20 bases: 17085743111(98.4026%)
+Q30 bases: 16542656962(95.2748%)
+
+Read2 aftering filtering:
+total reads: 176198631
+total bases: 17364866700
+Q20 bases: 16965633312(97.7009%)
+Q30 bases: 16222442183(93.4211%)
+
+Filtering result:
+reads passed filter: 352397262
+reads failed due to low quality: 2989152
+reads failed due to too many N: 9610
+reads failed due to too short: 275488
+reads with adapter trimmed: 38310754
+bases trimmed due to adapters: 514383016
+reads corrected by overlap analysis: 10433156
+bases corrected by overlap analysis: 19598043
+
+Duplication rate: 42.8642%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD523_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD523_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3340_PD523_A2B3_GM-T_S14_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3340_PD523_A2B3_GM-T_S14_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD523_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD523_fastp.json --report_title PD523 --thread 16 
+fastp v0.20.0, time used: 1716 seconds
+[1] "2019-07-01 16:34:47 - QC and Trimming: PDC87"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 191484359
+total bases: 19148435900
+Q20 bases: 18844509440(98.4128%)
+Q30 bases: 18280542492(95.4675%)
+
+Read2 before filtering:
+total reads: 191484359
+total bases: 19148435900
+Q20 bases: 18634012039(97.3135%)
+Q30 bases: 17885336664(93.4036%)
+
+Read1 after filtering:
+total reads: 189176100
+total bases: 18613390902
+Q20 bases: 18350843777(98.5895%)
+Q30 bases: 17813573828(95.703%)
+
+Read2 aftering filtering:
+total reads: 189176100
+total bases: 18615086522
+Q20 bases: 18240815522(97.9894%)
+Q30 bases: 17541438872(94.2324%)
+
+Filtering result:
+reads passed filter: 378352200
+reads failed due to low quality: 3945804
+reads failed due to too many N: 10268
+reads failed due to too short: 660446
+reads with adapter trimmed: 44505873
+bases trimmed due to adapters: 612441936
+reads corrected by overlap analysis: 10267595
+bases corrected by overlap analysis: 18759351
+
+Duplication rate: 50.9351%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC87_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC87_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3341_PDC87_A1A4_GM-T_S15_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3341_PDC87_A1A4_GM-T_S15_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC87_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC87_fastp.json --report_title PDC87 --thread 16 
+fastp v0.20.0, time used: 1827 seconds
+[1] "2019-07-01 17:05:14 - QC and Trimming: PD163"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 177373675
+total bases: 17737367500
+Q20 bases: 17411300778(98.1617%)
+Q30 bases: 16856278244(95.0326%)
+
+Read2 before filtering:
+total reads: 177373675
+total bases: 17737367500
+Q20 bases: 17236425826(97.1758%)
+Q30 bases: 16458067356(92.7875%)
+
+Read1 after filtering:
+total reads: 175636543
+total bases: 17278995952
+Q20 bases: 17007323074(98.4277%)
+Q30 bases: 16481113894(95.3824%)
+
+Read2 aftering filtering:
+total reads: 175636543
+total bases: 17280754230
+Q20 bases: 16881637330(97.6904%)
+Q30 bases: 16144827193(93.4266%)
+
+Filtering result:
+reads passed filter: 351273086
+reads failed due to low quality: 3166306
+reads failed due to too many N: 9624
+reads failed due to too short: 298334
+reads with adapter trimmed: 42169236
+bases trimmed due to adapters: 571394881
+reads corrected by overlap analysis: 10379981
+bases corrected by overlap analysis: 19951623
+
+Duplication rate: 50.1999%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD163_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD163_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3342_PD163_A1B1_GM-T_S16_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3342_PD163_A1B1_GM-T_S16_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD163_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD163_fastp.json --report_title PD163 --thread 16 
+fastp v0.20.0, time used: 1850 seconds
+[1] "2019-07-01 17:36:04 - QC and Trimming: PD678"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 194011252
+total bases: 19401125200
+Q20 bases: 19044586363(98.1623%)
+Q30 bases: 18429556668(94.9922%)
+
+Read2 before filtering:
+total reads: 194011252
+total bases: 19401125200
+Q20 bases: 18830180425(97.0572%)
+Q30 bases: 17991330130(92.7334%)
+
+Read1 after filtering:
+total reads: 191581437
+total bases: 18912834294
+Q20 bases: 18610692037(98.4024%)
+Q30 bases: 18025357867(95.3075%)
+
+Read2 aftering filtering:
+total reads: 191581437
+total bases: 18914847317
+Q20 bases: 18475973443(97.6797%)
+Q30 bases: 17683702055(93.4911%)
+
+Filtering result:
+reads passed filter: 383162874
+reads failed due to low quality: 4166074
+reads failed due to too many N: 10738
+reads failed due to too short: 682818
+reads with adapter trimmed: 37314138
+bases trimmed due to adapters: 491128937
+reads corrected by overlap analysis: 10527062
+bases corrected by overlap analysis: 20673957
+
+Duplication rate: 41.7992%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD678_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD678_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3343_PD678_A1B5_GM-T_S17_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3343_PD678_A1B5_GM-T_S17_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD678_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD678_fastp.json --report_title PD678 --thread 16 
+fastp v0.20.0, time used: 2024 seconds
+[1] "2019-07-01 18:09:48 - QC and Trimming: PD747"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 170998658
+total bases: 17099865800
+Q20 bases: 16845033014(98.5097%)
+Q30 bases: 16346983339(95.5971%)
+
+Read2 before filtering:
+total reads: 170998658
+total bases: 17099865800
+Q20 bases: 16714774893(97.748%)
+Q30 bases: 16050071417(93.8608%)
+
+Read1 after filtering:
+total reads: 169863761
+total bases: 16791055182
+Q20 bases: 16563275462(98.6434%)
+Q30 bases: 16081071285(95.7717%)
+
+Read2 aftering filtering:
+total reads: 169863761
+total bases: 16791913840
+Q20 bases: 16475618738(98.1164%)
+Q30 bases: 15837809174(94.3181%)
+
+Filtering result:
+reads passed filter: 339727522
+reads failed due to low quality: 2083156
+reads failed due to too many N: 9238
+reads failed due to too short: 177400
+reads with adapter trimmed: 31625624
+bases trimmed due to adapters: 392031516
+reads corrected by overlap analysis: 7690544
+bases corrected by overlap analysis: 13255327
+
+Duplication rate: 32.1919%
+
+Insert size peak (evaluated by paired-end reads): 118
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD747_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD747_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3344_PD747_A2A9_GM-T_S18_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3344_PD747_A2A9_GM-T_S18_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD747_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD747_fastp.json --report_title PD747 --thread 16 
+fastp v0.20.0, time used: 1640 seconds
+[1] "2019-07-01 18:37:08 - QC and Trimming: PD115"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 175315012
+total bases: 17531501200
+Q20 bases: 17226743028(98.2617%)
+Q30 bases: 16686597362(95.1807%)
+
+Read2 before filtering:
+total reads: 175315012
+total bases: 17531501200
+Q20 bases: 17010858177(97.0302%)
+Q30 bases: 16180473762(92.2937%)
+
+Read1 after filtering:
+total reads: 173602474
+total bases: 17216645358
+Q20 bases: 16956032441(98.4863%)
+Q30 bases: 16437891627(95.4767%)
+
+Read2 aftering filtering:
+total reads: 173602474
+total bases: 17217405800
+Q20 bases: 16785837736(97.4934%)
+Q30 bases: 15987183477(92.8548%)
+
+Filtering result:
+reads passed filter: 347204948
+reads failed due to low quality: 3147206
+reads failed due to too many N: 9772
+reads failed due to too short: 268098
+reads with adapter trimmed: 23854239
+bases trimmed due to adapters: 287457410
+reads corrected by overlap analysis: 8832068
+bases corrected by overlap analysis: 16763509
+
+Duplication rate: 56.8041%
+
+Insert size peak (evaluated by paired-end reads): 127
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD115_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD115_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3345_PD115_A1B1_GM-T_S19_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3345_PD115_A1B1_GM-T_S19_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD115_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD115_fastp.json --report_title PD115 --thread 16 
+fastp v0.20.0, time used: 1706 seconds
+[1] "2019-07-01 19:05:34 - QC and Trimming: PD666"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 187986781
+total bases: 18798678100
+Q20 bases: 18504549933(98.4354%)
+Q30 bases: 17948910102(95.4796%)
+
+Read2 before filtering:
+total reads: 187986781
+total bases: 18798678100
+Q20 bases: 18324566598(97.478%)
+Q30 bases: 17567943650(93.4531%)
+
+Read1 after filtering:
+total reads: 186112407
+total bases: 18385706721
+Q20 bases: 18127572106(98.596%)
+Q30 bases: 17593216220(95.6896%)
+
+Read2 aftering filtering:
+total reads: 186112407
+total bases: 18386963906
+Q20 bases: 18016220163(97.9837%)
+Q30 bases: 17296077373(94.0671%)
+
+Filtering result:
+reads passed filter: 372224814
+reads failed due to low quality: 3247730
+reads failed due to too many N: 10334
+reads failed due to too short: 490684
+reads with adapter trimmed: 36418800
+bases trimmed due to adapters: 452739657
+reads corrected by overlap analysis: 9075526
+bases corrected by overlap analysis: 16166821
+
+Duplication rate: 39.5562%
+
+Insert size peak (evaluated by paired-end reads): 119
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD666_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD666_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3346_PD666_A1A4_GM-T_S20_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3346_PD666_A1A4_GM-T_S20_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD666_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD666_fastp.json --report_title PD666 --thread 16 
+fastp v0.20.0, time used: 1874 seconds
+[1] "2019-07-01 19:36:48 - QC and Trimming: PDC91"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 193698560
+total bases: 19369856000
+Q20 bases: 19054617953(98.3725%)
+Q30 bases: 18480731864(95.4098%)
+
+Read2 before filtering:
+total reads: 193698560
+total bases: 19369856000
+Q20 bases: 18885278067(97.4983%)
+Q30 bases: 18099154169(93.4398%)
+
+Read1 after filtering:
+total reads: 192039364
+total bases: 18923504333
+Q20 bases: 18652150957(98.5661%)
+Q30 bases: 18103117040(95.6647%)
+
+Read2 aftering filtering:
+total reads: 192039364
+total bases: 18924916626
+Q20 bases: 18537806591(97.9545%)
+Q30 bases: 17791851292(94.0128%)
+
+Filtering result:
+reads passed filter: 384078728
+reads failed due to low quality: 2917660
+reads failed due to too many N: 10758
+reads failed due to too short: 389974
+reads with adapter trimmed: 43467757
+bases trimmed due to adapters: 563330845
+reads corrected by overlap analysis: 9731544
+bases corrected by overlap analysis: 18016077
+
+Duplication rate: 43.2904%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC91_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC91_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3347_PDC91_A1B4_GM-T_S21_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3347_PDC91_A1B4_GM-T_S21_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC91_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PDC91_fastp.json --report_title PDC91 --thread 16 
+fastp v0.20.0, time used: 1842 seconds
+[1] "2019-07-01 20:07:30 - QC and Trimming: PD294"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 184317234
+total bases: 18431723400
+Q20 bases: 18090381139(98.1481%)
+Q30 bases: 17516737657(95.0358%)
+
+Read2 before filtering:
+total reads: 184317234
+total bases: 18431723400
+Q20 bases: 17904704579(97.1407%)
+Q30 bases: 17079430288(92.6632%)
+
+Read1 after filtering:
+total reads: 182542154
+total bases: 17925369509
+Q20 bases: 17644610389(98.4337%)
+Q30 bases: 17102240600(95.408%)
+
+Read2 aftering filtering:
+total reads: 182542154
+total bases: 17927216691
+Q20 bases: 17508023925(97.6617%)
+Q30 bases: 16728225326(93.3119%)
+
+Filtering result:
+reads passed filter: 365084308
+reads failed due to low quality: 3331646
+reads failed due to too many N: 9772
+reads failed due to too short: 208742
+reads with adapter trimmed: 48448292
+bases trimmed due to adapters: 655694069
+reads corrected by overlap analysis: 11289034
+bases corrected by overlap analysis: 22081000
+
+Duplication rate: 53.3251%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD294_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD294_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3348_PD294_P1B1_GM-T_S22_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3348_PD294_P1B1_GM-T_S22_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD294_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD294_fastp.json --report_title PD294 --thread 16 
+fastp v0.20.0, time used: 1775 seconds
+[1] "2019-07-01 20:37:05 - QC and Trimming: PD531"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 168071032
+total bases: 16807103200
+Q20 bases: 16532409840(98.3656%)
+Q30 bases: 16020834900(95.3218%)
+
+Read2 before filtering:
+total reads: 168071032
+total bases: 16807103200
+Q20 bases: 16421937653(97.7083%)
+Q30 bases: 15757056715(93.7524%)
+
+Read1 after filtering:
+total reads: 166851092
+total bases: 16385971497
+Q20 bases: 16148345789(98.5498%)
+Q30 bases: 15658227353(95.5587%)
+
+Read2 aftering filtering:
+total reads: 166851092
+total bases: 16387075056
+Q20 bases: 16070619218(98.0689%)
+Q30 bases: 15437080384(94.2028%)
+
+Filtering result:
+reads passed filter: 333702184
+reads failed due to low quality: 2199000
+reads failed due to too many N: 9340
+reads failed due to too short: 231540
+reads with adapter trimmed: 44742778
+bases trimmed due to adapters: 600462771
+reads corrected by overlap analysis: 8374423
+bases corrected by overlap analysis: 14883652
+
+Duplication rate: 48.4922%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD531_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD531_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3349_PD531_A1B3_GM-T_S23_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3349_PD531_A1B3_GM-T_S23_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD531_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD531_fastp.json --report_title PD531 --thread 16 
+fastp v0.20.0, time used: 1697 seconds
+[1] "2019-07-01 21:05:22 - QC and Trimming: PD683"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 158683034
+total bases: 15868303400
+Q20 bases: 15619399926(98.4314%)
+Q30 bases: 15154205770(95.4998%)
+
+Read2 before filtering:
+total reads: 158683034
+total bases: 15868303400
+Q20 bases: 15463164800(97.4469%)
+Q30 bases: 14781560412(93.1515%)
+
+Read1 after filtering:
+total reads: 157481857
+total bases: 15446865966
+Q20 bases: 15232945403(98.6151%)
+Q30 bases: 14789784227(95.7462%)
+
+Read2 aftering filtering:
+total reads: 157481857
+total bases: 15447807192
+Q20 bases: 15115512984(97.8489%)
+Q30 bases: 14468193806(93.6586%)
+
+Filtering result:
+reads passed filter: 314963714
+reads failed due to low quality: 2148008
+reads failed due to too many N: 8742
+reads failed due to too short: 245604
+reads with adapter trimmed: 44355052
+bases trimmed due to adapters: 607092826
+reads corrected by overlap analysis: 8401990
+bases corrected by overlap analysis: 14818141
+
+Duplication rate: 45.0125%
+
+Insert size peak (evaluated by paired-end reads): 116
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD683_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD683_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3350_PD683_A1B5_GM-T_S24_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/NM3350_PD683_A1B5_GM-T_S24_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD683_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/PD683_fastp.json --report_title PD683 --thread 16 
+fastp v0.20.0, time used: 1554 seconds
+[1] "2019-07-01 21:31:17 - QC and Trimming: Undetermined"
+Detecting adapter sequence for read1...
+>Illumina TruSeq Adapter Read 1
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+
+Detecting adapter sequence for read2...
+>Illumina TruSeq Adapter Read 2
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Read1 before filtering:
+total reads: 490070647
+total bases: 49007064700
+Q20 bases: 47575937282(97.0798%)
+Q30 bases: 45646934138(93.1436%)
+
+Read2 before filtering:
+total reads: 490070647
+total bases: 49007064700
+Q20 bases: 46738886259(95.3717%)
+Q30 bases: 43992508264(89.7677%)
+
+Read1 after filtering:
+total reads: 474271318
+total bases: 46972815518
+Q20 bases: 45907172300(97.7314%)
+Q30 bases: 44188728874(94.073%)
+
+Read2 aftering filtering:
+total reads: 474271318
+total bases: 46973824666
+Q20 bases: 45340103785(96.5221%)
+Q30 bases: 42830592857(91.1797%)
+
+Filtering result:
+reads passed filter: 948542636
+reads failed due to low quality: 23456592
+reads failed due to too many N: 1188172
+reads failed due to too short: 6953894
+reads with adapter trimmed: 67872653
+bases trimmed due to adapters: 927369610
+reads corrected by overlap analysis: 20757088
+bases corrected by overlap analysis: 39874803
+
+Duplication rate: 28.3932%
+
+Insert size peak (evaluated by paired-end reads): 0
+
+JSON report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_fastp.json
+HTML report: /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_fastp.html
+
+fastp --in1 /data/RNAseq_PD/tissue_polyA_samples/raw_data/Undetermined_S0_R1_001.fastq.gz --out1 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_S0_R1_001_QC.fastq.gz --in2 /data/RNAseq_PD/tissue_polyA_samples/raw_data/Undetermined_S0_R3_001.fastq.gz --out2 /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_S0_R3_001_QC.fastq.gz --detect_adapter_for_pe --qualified_quality_phred 15 --unqualified_percent_limit 40 --n_base_limit 5 --length_required 36 --correction --overlap_len_require 30 --overlap_diff_limit 5 --overrepresentation_analysis --overrepresentation_sampling 20 --html /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_fastp.html --json /data/RNAseq_PD/tissue_polyA_samples/QC/fastp/Undetermined_fastp.json --report_title Undetermined --thread 16 
+fastp v0.20.0, time used: 4687 seconds
+Started analysis of NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Started analysis of NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Started analysis of NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Started analysis of NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Started analysis of NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Started analysis of NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Started analysis of NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Started analysis of NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Started analysis of NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Started analysis of NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Started analysis of NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Started analysis of NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Started analysis of NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Started analysis of NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Started analysis of NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Started analysis of NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Started analysis of NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Started analysis of NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Started analysis of NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Started analysis of NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 5% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 5% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 5% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 5% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 5% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 5% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 5% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 5% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 5% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 5% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 5% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 5% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 5% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 5% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 5% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 5% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 5% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 5% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 5% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 5% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 10% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 10% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 10% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 10% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 10% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 10% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 10% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 10% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 10% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 10% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 10% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 10% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 10% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 10% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 10% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 10% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 10% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 10% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 10% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 10% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 15% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 15% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 15% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 15% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 15% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 15% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 15% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 15% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 15% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 15% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 15% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 15% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 15% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 15% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 15% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 15% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 15% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 15% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 20% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 20% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 20% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 15% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 20% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 15% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 20% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 20% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 20% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 20% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 20% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 20% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 20% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 20% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 20% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 20% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 25% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 25% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 20% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 20% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 20% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 20% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 25% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 25% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 20% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 20% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 25% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 25% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 25% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 25% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 30% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 30% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 25% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 25% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 25% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 25% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 25% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 30% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 25% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 25% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 25% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 25% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 30% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 25% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 25% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 35% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 35% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 30% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 30% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 30% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 30% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 25% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 30% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 30% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 30% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 35% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 30% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 35% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 30% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 30% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 30% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 30% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 30% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 30% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 40% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 40% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 35% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 40% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 35% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 35% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 35% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 40% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 35% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 35% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 30% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 35% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 35% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 30% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 35% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 35% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 35% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 35% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 35% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 35% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 45% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 45% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 45% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 45% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 40% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 40% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 40% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 40% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 40% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 40% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 40% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 40% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 35% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 40% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 40% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 50% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 40% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 50% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 35% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 40% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 40% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 40% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 50% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 50% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 45% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 45% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 45% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 45% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 45% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 45% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 45% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 45% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 55% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 55% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 45% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 40% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 45% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 45% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 45% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 45% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 55% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 40% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 45% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 55% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 50% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 50% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 50% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 50% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 50% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 60% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 50% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 50% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 60% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 50% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 60% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 50% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 50% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 50% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 50% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 50% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 60% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 45% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 50% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 45% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 65% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 55% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 55% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 55% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 65% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 55% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 55% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 55% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 55% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 55% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 65% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 65% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 55% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 55% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 55% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 55% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 55% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 55% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 70% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 50% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 70% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 60% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 60% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 60% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 60% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 50% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 60% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 70% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 60% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 60% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 60% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 70% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 60% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 60% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 60% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 60% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 60% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 75% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 75% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 60% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 65% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 75% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 65% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 65% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 55% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 65% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 65% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 65% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 65% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 55% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 75% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 65% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 80% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 65% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 80% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 65% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 65% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 65% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 65% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 80% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 70% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 70% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 65% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 70% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 80% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 70% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 70% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 70% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 60% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 70% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 70% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 60% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 85% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 85% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 85% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 70% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 70% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 70% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 70% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 70% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 85% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 75% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 75% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 75% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 75% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 70% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 75% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 75% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 75% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 90% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 75% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 65% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 90% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 90% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 65% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 90% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 75% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 75% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 75% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 75% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 80% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 75% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 80% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 80% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 80% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 80% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 95% complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 75% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 80% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 80% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 95% complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 95% complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 80% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 95% complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Approx 70% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 70% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 80% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 85% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 80% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 80% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 80% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 80% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 85% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Analysis complete for NM3327_PD332_A2B1_GM-T_S1_R1_001_QC.fastq.gz
+Approx 85% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 85% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 85% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Started analysis of NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Analysis complete for NM3327_PD332_A2B1_GM-T_S1_R3_001_QC.fastq.gz
+Approx 85% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Analysis complete for NM3336_PD415_A2B2_GM-T_S10_R1_001_QC.fastq.gz
+Approx 85% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 80% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Started analysis of NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Started analysis of NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 85% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Analysis complete for NM3336_PD415_A2B2_GM-T_S10_R3_001_QC.fastq.gz
+Started analysis of NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 75% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 90% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 85% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 85% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 75% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 85% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 85% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 90% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 90% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 85% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 90% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 5% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 90% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 90% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 90% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 5% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 85% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 5% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 90% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 5% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 95% complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 90% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 95% complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 80% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 90% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 90% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Approx 10% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 90% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Approx 95% complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 95% complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 90% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 95% complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Approx 80% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 10% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 95% complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Approx 10% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 95% complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Approx 90% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 95% complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Approx 10% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Analysis complete for NM3335_PD706_A1A1_GM-T_S9_R1_001_QC.fastq.gz
+Approx 15% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Started analysis of NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Analysis complete for NM3335_PD706_A1A1_GM-T_S9_R3_001_QC.fastq.gz
+Approx 95% complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Approx 95% complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 95% complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Started analysis of NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 15% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Analysis complete for NM3332_PD366_A2B3_GM-T_S6_R3_001_QC.fastq.gz
+Approx 95% complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Analysis complete for NM3334_PDC22_A1E3_GM-T_S8_R1_001_QC.fastq.gz
+Approx 85% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Analysis complete for NM3332_PD366_A2B3_GM-T_S6_R1_001_QC.fastq.gz
+Started analysis of NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 15% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Started analysis of NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 95% complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Analysis complete for NM3328_PD341_A2B2_GM-T_S2_R3_001_QC.fastq.gz
+Analysis complete for NM3334_PDC22_A1E3_GM-T_S8_R3_001_QC.fastq.gz
+Started analysis of NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 85% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Started analysis of NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Started analysis of NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 95% complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 15% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Analysis complete for NM3328_PD341_A2B2_GM-T_S2_R1_001_QC.fastq.gz
+Started analysis of NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 20% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 20% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 5% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Analysis complete for NM3331_PD566_A1B4_GM-T_S5_R1_001_QC.fastq.gz
+Analysis complete for NM3329_PD732_A2B2_GM-T_S3_R3_001_QC.fastq.gz
+Analysis complete for NM3329_PD732_A2B2_GM-T_S3_R1_001_QC.fastq.gz
+Approx 5% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 20% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Analysis complete for NM3331_PD566_A1B4_GM-T_S5_R3_001_QC.fastq.gz
+Started analysis of NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 5% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Started analysis of NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Started analysis of NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 5% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Started analysis of NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Analysis complete for NM3333_PD413_A2B1_GM-T_S7_R1_001_QC.fastq.gz
+Approx 5% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 5% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 5% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 90% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Started analysis of NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 20% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Analysis complete for NM3333_PD413_A2B1_GM-T_S7_R3_001_QC.fastq.gz
+Approx 90% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Started analysis of NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 5% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 25% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 25% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 10% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 25% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 5% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 10% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 10% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 10% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 5% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 5% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 10% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 5% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 5% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 25% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 10% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 10% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 10% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 5% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 95% complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Approx 30% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 95% complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Approx 30% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 10% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 30% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 15% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 15% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 15% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 10% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 15% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 15% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 10% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 30% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 10% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 10% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 15% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 15% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 15% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 10% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 35% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 35% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Analysis complete for NM3330_PDC05_A1A2_GM-T_S4_R1_001_QC.fastq.gz
+Started analysis of NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Analysis complete for NM3330_PDC05_A1A2_GM-T_S4_R3_001_QC.fastq.gz
+Started analysis of NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 15% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 35% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 20% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 15% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 20% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 20% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 20% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 35% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 15% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 15% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 20% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 15% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 15% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 40% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 20% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 20% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 20% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 40% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 5% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 20% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 40% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 5% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 20% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 25% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 25% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 25% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 20% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 40% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 25% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 45% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 20% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 25% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 20% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 20% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 25% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 45% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 25% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 25% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 10% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 45% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 25% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 10% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 25% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 30% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 30% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 30% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 25% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 45% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 30% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 50% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 25% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 50% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 30% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 30% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 25% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 25% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 30% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 30% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 30% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 50% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 15% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 30% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 35% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 15% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 35% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 50% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 35% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 30% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 55% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 30% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 35% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 55% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 35% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 35% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 30% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 30% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 35% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 35% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 35% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 55% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 35% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 20% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 40% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 55% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 40% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 40% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 35% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 60% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 20% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 35% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 60% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 40% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 40% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 40% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 35% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 40% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 40% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 35% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 60% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 40% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 40% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 25% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 45% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 45% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 60% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 45% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 65% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 40% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 25% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 40% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 65% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 45% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 45% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 45% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 45% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 40% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 65% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 45% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 40% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 45% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 45% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 50% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 30% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 50% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 50% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 65% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 70% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 45% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 30% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 45% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 70% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 50% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 50% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 50% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 70% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 50% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 50% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 45% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 45% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 50% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 50% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 55% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 35% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 55% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 70% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 55% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 75% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 50% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 35% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 50% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 75% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 55% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 55% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 75% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 55% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 55% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 55% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 50% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 55% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 50% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 60% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 80% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 55% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 60% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 60% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 40% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 75% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 55% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 80% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 55% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 40% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 60% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 60% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 80% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 60% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 60% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 60% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 85% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 65% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 55% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 60% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 55% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 80% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 65% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 65% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 45% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 60% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 85% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 60% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 60% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 45% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 65% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 85% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 65% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 65% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 65% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 90% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 65% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 70% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 85% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 70% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 70% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 90% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 50% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 60% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 65% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 60% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 65% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 65% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 65% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 50% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 70% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 90% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 70% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 70% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 95% complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Approx 75% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 90% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Approx 70% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 70% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 95% complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Approx 75% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 75% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 55% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 70% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 65% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 70% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 65% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 70% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 70% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 75% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 55% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 95% complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 75% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 75% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Analysis complete for NM3337_PD416_A2D3_GM-T_S11_R1_001_QC.fastq.gz
+Started analysis of NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 80% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 95% complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Analysis complete for NM3337_PD416_A2D3_GM-T_S11_R3_001_QC.fastq.gz
+Started analysis of NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 80% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 75% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 75% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 80% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 75% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 60% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 80% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 70% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 75% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 75% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 70% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 60% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 75% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Analysis complete for NM3338_PDC34_A1B3_GM-T_S12_R1_001_QC.fastq.gz
+Approx 80% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Started analysis of NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 80% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 85% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 5% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Analysis complete for NM3338_PDC34_A1B3_GM-T_S12_R3_001_QC.fastq.gz
+Started analysis of NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 85% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 5% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 85% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 80% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 80% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 80% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 85% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 65% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 80% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 75% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 80% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 85% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 65% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 80% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 75% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 85% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 5% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 90% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 10% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 90% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 5% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 85% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 90% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 90% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 85% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 85% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 10% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 85% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 70% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 90% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 80% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 85% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 70% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 80% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 85% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 90% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 10% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 95% complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Approx 95% complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Approx 15% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 90% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 95% complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 95% complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Approx 10% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 90% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 90% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 90% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 15% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 75% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 95% complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Approx 85% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 95% complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 90% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 85% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 75% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 90% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 15% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Analysis complete for NM3340_PD523_A2B3_GM-T_S14_R1_001_QC.fastq.gz
+Analysis complete for NM3342_PD163_A1B1_GM-T_S16_R1_001_QC.fastq.gz
+Started analysis of NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Analysis complete for NM3344_PD747_A2A9_GM-T_S18_R1_001_QC.fastq.gz
+Approx 95% complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Started analysis of NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Analysis complete for NM3340_PD523_A2B3_GM-T_S14_R3_001_QC.fastq.gz
+Started analysis of NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 20% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 15% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Started analysis of NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 95% complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 95% complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 95% complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 80% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Analysis complete for NM3344_PD747_A2A9_GM-T_S18_R3_001_QC.fastq.gz
+Started analysis of Undetermined_S0_R1_001_QC.fastq.gz
+Approx 20% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Analysis complete for NM3342_PD163_A1B1_GM-T_S16_R3_001_QC.fastq.gz
+Approx 90% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 95% complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Approx 80% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Started analysis of Undetermined_S0_R3_001_QC.fastq.gz
+Approx 95% complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 90% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 20% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 5% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 5% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 5% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Analysis complete for NM3345_PD115_A1B1_GM-T_S19_R1_001_QC.fastq.gz
+Approx 5% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Analysis complete for NM3345_PD115_A1B1_GM-T_S19_R3_001_QC.fastq.gz
+Approx 25% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 20% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Analysis complete for NM3341_PDC87_A1A4_GM-T_S15_R3_001_QC.fastq.gz
+Approx 85% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Analysis complete for NM3339_PD563_A1C1_GM-T_S13_R1_001_QC.fastq.gz
+Approx 25% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 85% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 95% complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Analysis complete for NM3341_PDC87_A1A4_GM-T_S15_R1_001_QC.fastq.gz
+Analysis complete for NM3339_PD563_A1C1_GM-T_S13_R3_001_QC.fastq.gz
+Approx 95% complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 10% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 10% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 25% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 10% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 10% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 25% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 30% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 90% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 30% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 90% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 15% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Analysis complete for NM3343_PD678_A1B5_GM-T_S17_R1_001_QC.fastq.gz
+Approx 15% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Analysis complete for NM3343_PD678_A1B5_GM-T_S17_R3_001_QC.fastq.gz
+Approx 15% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 15% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 30% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 30% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 5% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 35% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 95% complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 5% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 20% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 35% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 95% complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 20% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 20% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 20% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 35% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 35% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 40% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Analysis complete for NM3346_PD666_A1A4_GM-T_S20_R1_001_QC.fastq.gz
+Approx 25% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 25% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 40% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 25% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 25% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Analysis complete for NM3346_PD666_A1A4_GM-T_S20_R3_001_QC.fastq.gz
+Approx 40% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 40% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 30% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 45% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 30% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 30% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 30% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 45% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 45% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 10% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 45% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 35% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 10% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 35% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 50% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 35% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 35% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 50% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 50% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 40% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 50% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 40% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 40% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 55% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 40% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 55% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 55% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 45% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 45% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 55% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 45% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 45% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 60% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 15% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 50% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 50% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 60% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 15% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 60% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 60% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 50% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 50% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 65% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 55% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 55% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 65% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 65% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 55% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 65% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 55% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 60% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 60% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 70% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 70% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 60% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 70% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 70% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 60% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 20% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 65% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 65% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 20% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 75% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 65% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 75% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 70% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 75% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 65% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 75% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 70% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 80% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 70% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 75% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 80% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 70% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 80% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 80% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 75% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 85% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 80% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 75% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 25% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 75% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 85% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 80% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 85% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 85% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 25% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 85% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 80% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 90% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 85% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 80% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 90% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 90% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 90% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 90% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 85% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 95% complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Approx 90% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 85% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 95% complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Approx 95% complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Approx 95% complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 95% complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Approx 90% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Approx 30% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 95% complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 30% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 90% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Analysis complete for NM3347_PDC91_A1B4_GM-T_S21_R1_001_QC.fastq.gz
+Analysis complete for NM3348_PD294_P1B1_GM-T_S22_R1_001_QC.fastq.gz
+Analysis complete for NM3350_PD683_A1B5_GM-T_S24_R1_001_QC.fastq.gz
+Analysis complete for NM3348_PD294_P1B1_GM-T_S22_R3_001_QC.fastq.gz
+Analysis complete for NM3347_PDC91_A1B4_GM-T_S21_R3_001_QC.fastq.gz
+Approx 95% complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Analysis complete for NM3350_PD683_A1B5_GM-T_S24_R3_001_QC.fastq.gz
+Approx 95% complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Analysis complete for NM3349_PD531_A1B3_GM-T_S23_R3_001_QC.fastq.gz
+Analysis complete for NM3349_PD531_A1B3_GM-T_S23_R1_001_QC.fastq.gz
+Approx 35% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 35% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 40% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 40% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 45% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 45% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 50% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 50% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 55% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 55% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 60% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 60% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 65% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 65% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 70% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 70% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 75% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 75% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 80% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 80% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 85% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 85% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 90% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 90% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Approx 95% complete for Undetermined_S0_R1_001_QC.fastq.gz
+Approx 95% complete for Undetermined_S0_R3_001_QC.fastq.gz
+Analysis complete for Undetermined_S0_R1_001_QC.fastq.gz
+Analysis complete for Undetermined_S0_R3_001_QC.fastq.gz
+[INFO   ]         multiqc : This is MultiQC v1.8.dev0
+[INFO   ]         multiqc : Template    : default
+[INFO   ]         multiqc : Searching '/data/RNAseq_PD/tissue_polyA_samples/QC/fastp'
+[INFO   ]           fastp : Found 25 reports
+[INFO   ]          fastqc : Found 50 reports
+[INFO   ]         multiqc : Compressing plot data
+[INFO   ]         multiqc : Report      : ../../data/RNAseq_PD/tissue_polyA_samples/QC/multiqc/PD_tissue_polyA.html
+[INFO   ]         multiqc : Data        : ../../data/RNAseq_PD/tissue_polyA_samples/QC/multiqc/PD_tissue_polyA_data
+[INFO   ]         multiqc : MultiQC complete

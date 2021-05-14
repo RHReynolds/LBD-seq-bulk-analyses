@@ -1,0 +1,163 @@
+---
+title: "Formatting GWAS for LDSC"
+author: "Regina H. Reynolds"
+output: 
+  html_document:
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(data.table)
+library(LDSCforRyten)
+library(SNPlocs.Hsapiens.dbSNP144.GRCh37)
+library(SNPlocs.Hsapiens.dbSNP151.GRCh38)
+library(tidyverse)
+
+dbsnp_144 <- SNPlocs.Hsapiens.dbSNP144.GRCh37
+dbsnp_151 <- SNPlocs.Hsapiens.dbSNP151.GRCh38
+
+knitr::opts_chunk$set(echo = F, warning = F, message= F)
+```
+
+# Aim
+
+- Formatting GWAS for use with LDSC. This is necessary for all PD GWASs as SNPs are provided in the CHR:BP format, with no RS ids, thus need to liftover to hg38 and assign RS ids (which LDSC uses in the munge_stats.py script).
+- GWAS to be used:
+    - [PD GWAS ex23andMe](https://www.biorxiv.org/content/10.1101/388165v3): downloaded [here](https://drive.google.com/file/d/1FZ9UL99LAqyWnyNBxxlx6qOUlfAnublN/view). Link found on [IPDGC website](https://pdgenetics.org/resources).
+    - [PD AOO ex23andMe](https://www.ncbi.nlm.nih.gov/pubmed/30957308): downloaded [here](https://drive.google.com/file/d/1n-6eOF6gaIxP9dLHx_QCndeaOQU2uhCf/view). Link found on [IPDGC website](https://pdgenetics.org/resources).
+    - [AD](https://www.nature.com/articles/s41588-018-0311-9#Sec1): downloaded [here](https://ctg.cncr.nl/software/summary_statistics)
+        - Fortunately, no formatting required for use with LDSC. While it has been aligned to GRCh37, RS ids were provided (and RS ids are consistent between builds).
+    - [Lewy body dementia](https://pubmed.ncbi.nlm.nih.gov/33589841/). Can be downloaded from [here](https://www.ebi.ac.uk/gwas/studies/GCST90001390).
+
+# Formatting PD GWAS
+- Ran via nohup script using code below.
+```{r echo = T, eval = F}
+
+# Script location: here::here("misc_scripts", "Formatting_PDGWAS.R")
+PD <- fread("/data/LDScore/GWAS/PD2019_meta5_ex23andMe/nallsEtAl2019_excluding23andMe_allVariants.tab.gz")
+
+hg38 <- PD %>% 
+  tidyr::separate(col = SNP, into = c("CHR", "BP"), sep = ":") %>% 
+  LDSCforRyten::liftover_hg19_to_hg38(., path_to_chain = "/data/liftover/hg19/hg19ToHg38.over.chain") %>% 
+  LDSCforRyten::add_RS_to_GWAS(., dbsnp_151)
+
+fwrite(hg38, "/data/LDScore/GWAS/PD2019_meta5_ex23andMe/PD2019_ex23andMe_hg38.txt", sep = "\t")
+
+# Created GRCh37 version, too (not included in script)
+hg19 <- PD %>% 
+  tidyr::separate(col = SNP, into = c("CHR", "BP"), sep = ":") %>% 
+  dplyr::mutate(BP = as.integer(BP)) %>% 
+  LDSCforRyten::add_RS_to_GWAS(., dbsnp_144)
+
+fwrite(hg19, "/data/LDScore/GWAS/PD2019_meta5_ex23andMe/PD2019_ex23andMe_hg19.txt", sep = "\t")
+
+```
+
+# Formatting PD AOO GWAS
+- Ran via nohup script using code below.
+```{r echo = T, eval = F}
+
+# Script location: here::here("misc_scripts", "Formatting_PDGWAS.R")
+PD_AOO <- fread("/data/LDScore/GWAS/PD2018_AOO/sorted_AAO_april3_18_final_discovery.txt.gz")
+
+hg38 <- PD_AOO %>% 
+  dplyr::rename(SNP = MarkerName) %>% 
+  tidyr::separate(col = SNP, into = c("CHR", "BP"), sep = ":") %>% 
+  LDSCforRyten::liftover_hg19_to_hg38(., path_to_chain = "/data/liftover/hg19/hg19ToHg38.over.chain") %>% 
+  LDSCforRyten::add_RS_to_GWAS(., dbsnp_151)
+
+fwrite(hg38, "/data/LDScore/GWAS/PD2018_AOO/PD2018_AOO_hg38.txt", sep = "\t")
+
+```
+
+# Formatting PD progression GWAS
+- Phenotypes to use:
+    - Cognitive impairment - would expect to see cognitive impairment with dementia
+    - Dyskinesias
+    - Depression
+    - Motor fluctuations - this could potentially be a form of negative, which allows separation between motor and cognitive progression
+- All of above are binomial traits wherein 2 types of analysis performed:
+    1. Odds ratio at baseline -- this was corrected for years from diagnosis, so despite only being a baseline measurement (beta not included, only intercept tested) then could still be form of marker for progression
+    2. Hazard ratio in follow-ups -- hazard ratios differ from odds ratios in that ORs are cumulative over an entire study, using a defined endpoint, while HRs represent instantaneous risk over the study time period, thus HR might be considered more of a measure of progression than baseline
+- Formatting required:
+    - Effect and reference alleles contained in different file to summary stats, therefore need to merge reference with summary stats.
+    - Reference file is build GRCh37, therefore liftover required.
+    - Script below run via nohup using code below.
+```{r echo = T, eval = F}
+
+# Script location: here::here("misc_scripts", "Formatting_PDprogressionGWAS.R")
+
+format_PD_progression <- function(path_to_GWAS, ref_file_path, path_to_chain){
+  
+  library(data.table)
+  library(LDSCforRyten)
+  library(tidyverse)
+  library(stringr)
+  library(SNPlocs.Hsapiens.dbSNP151.GRCh38)
+  
+  dbsnp <- SNPlocs.Hsapiens.dbSNP151.GRCh38
+
+  ref <- fread(ref_file_path)
+  
+  GWAS_df <- data.frame(paths = list.files(path = path_to_GWAS, pattern = ".txt.gz", full.names = T),
+                        base_or_surival = list.files(path = path_to_GWAS, pattern = ".txt.gz", full.names = F) %>% 
+                          str_replace("_.*", ""),
+                        phenotype = list.files(path = path_to_GWAS, pattern = ".txt.gz", full.names = F) %>% 
+                          str_replace(".txt.gz", "") %>% 
+                          str_replace(".*_", "")
+                        ) %>% 
+    dplyr::filter(!phenotype == "reference")
+  
+  for(i in 1:nrow(GWAS_df)){
+    
+    print(str_c("Formatting: ", GWAS_df$base_or_surival[i], "_", GWAS_df$phenotype[i]))
+    
+    GWAS <- fread(GWAS_df$paths[i] %>%
+                    as.character())
+
+    GWAS <- GWAS %>%
+      dplyr::inner_join(ref %>%
+                          dplyr::select(SNP, CHR, START, REF, ALT, MAF)) %>%
+      dplyr::rename(BP = START,
+                    A1 = ALT,
+                    A2 = REF) %>%
+      dplyr::select(CHR, BP, A1, A2, MAF, BETA, SE, P, N, NSTUDY)
+    
+    hg38 <- LDSCforRyten::liftover_hg19_to_hg38(GWAS, path_to_chain) %>% 
+      LDSCforRyten::add_RS_to_GWAS(., dbSNPref = dbsnp) %>% 
+      dplyr::select(SNP, everything())
+
+    fwrite(hg38, file = str_c("/data/LDScore/GWAS/PD2019_Progression/",
+                              GWAS_df$base_or_surival[i], "_",
+                              GWAS_df$phenotype[i], "_hg38.txt"),
+           sep = "\t")
+    
+  }
+  
+}
+
+format_PD_progression(path_to_GWAS = "/data/LDScore/GWAS/PD2019_Progression/",
+                      ref_file_path = "/data/LDScore/GWAS/PD2019_Progression/reference.txt.gz",
+                      path_to_chain = "/data/liftover/hg19/hg19ToHg38.over.chain")
+
+```
+
+# Formatting LBD GWAS
+```{r, echo = T, eval = F}
+
+LBD <- fread("/data/LDScore/GWAS/LBD2020/LBD2020.txt")
+
+LBD_hg38 <- LBD %>% 
+  dplyr::select(CHR = CHROM, BP = POS, A1, A2, P, MAF = A1_FREQ, Z_STAT, BETA, SE, N = OBS_CT) %>% 
+  dplyr::mutate(CHR = as.factor(CHR)) %>% 
+  LDSCforRyten::add_RS_to_GWAS(., dbsnp_151)
+
+fwrite(LBD_hg38, "/data/LDScore/GWAS/LBD2020/LBD2020_rsids.txt.gz", sep = "\t")
+```
+

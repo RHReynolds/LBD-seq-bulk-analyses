@@ -1,0 +1,714 @@
+---
+title: 'SRP058181: Post-correction PCA'
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+
+library(DEGreport)
+library(DESeq2)
+library(devtools)
+library(DT)
+library(factoextra)
+library(gplots)
+library(ggrepel)
+library(ggpubr)
+library(ggsci)
+library(pheatmap)
+library(tidyverse)
+library(stringr)
+library(pcaExplorer)
+library(readxl)
+library(viridis)
+library(vsn)
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+
+# Themes
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+```
+
+> Aims: Using SRP058181 (i) determine effect of covariate correction on gene expression and (ii) determine whether a PC axis can be correlated with changes in the proportions of more than one cell-type. 
+
+# File paths for workflow
+
+```{r file-paths}
+
+source(here::here("R", "file_paths.R"))
+
+```
+
+# Data pre-correction {.tabset}
+
+## Loading and filtering data
+- Recount2 provide a *SummarisedExperiment*. DESeq does have a function `DESeqDataSet` to convert such *SummarisedExperiment* objects. However, metadata in the summarised experiment does not include columns for sample characteristics including PMI, RIN, etc.
+- Therefore, chose to re-generate the DESeqDataSet from the count matrix in the *SummarisedExperiment*. This was done in: [SRP058181_post_quant_QC.html](SRP058181_post_quant_QC.html).
+- Given that PCA plots without filtered data already available in [SRP058181_post_quant_QC.html](SRP058181_post_quant_QC.html), will instead use filtered (but not batch-corrected) data initially.
+- **Samples removed**
+    - Removed SRR2015746 due to uncertainty re. sex (see [SRP058181_post_quant_QC.html](SRP058181_post_quant_QC.html)).
+```{r, class.source='fold-show'}
+
+dds <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "SRP058181/gene_level_quant/SRP058181_DESeqDataSet.Rds"
+    )
+  )
+dds <- estimateSizeFactors(dds)
+
+# Design formula
+design(dds)
+
+# Remove SRR2015746 (C0061), due to uncertainty re. sex
+dds <- dds[, dds$recount_id != "SRR2015746"]
+# dds <- dds[, dds$Source != "HBSFRC"]
+
+# Filter genes such that only genes with a minimum count of 1 across 100% of samples in each group are retained
+filter_count <- DEGreport::degFilter(counts = counts(dds),
+                                     metadata = as.data.frame(colData(dds)),
+                                     group = "Disease_Group",
+                                     min = 1, # All samples in group must have more than expr > 0
+                                     minreads = 0)
+cat("Genes in final count matrix: ", nrow(filter_count))
+
+filter_dds <- dds[rownames(filter_count),] 
+
+```
+
+- Following filtering, the number of indivuals per source and disease group are:
+```{r}
+colData(filter_dds) %>% 
+  as_tibble() %>% 
+  dplyr::group_by(Source, Disease_Group) %>% 
+  dplyr::summarise(n = n())
+```
+
+
+## Correlations between covariates
+- See positive correlations between:
+    - Disease group and dementia status (as would be expected)
+    - Disease group and Braak score 
+    - Astrocyte, microglial, OPC and vascular proportions.
+    - Excitatory and inhibitory neuron proportions.
+    - Several measures of read count i.e. sizeFactor, read_count_as_reported_by_sra, reads_downloaded, mapped_read_count, auc
+    - Source and PMI -- also expected if different brain banks have different criteria for PMI
+- See negative correlations between:
+    - Excitatory/inhibitory neuron proportions and age at death.
+    - Excitatory/inhibitory neuron proportions and oligo proportions.
+
+```{r, fig.height = 8}
+
+DEGreport::degCorCov(
+  colData(filter_dds)[, 
+                      !colnames(colData(filter_dds)) %in% 
+                        c("Lewy_Body_pathology", "ApoE", "Cause_of_death", 
+                          "proportion_of_reads_reported_by_sra_downloaded", "paired_end",
+                          "sra_misreported_paired_end", "Motor_onset", "Disease_duration")]
+)
+
+```
+
+## Heatmap of sample-to-sample distances
+- Transformed count matrix can be transposed (i.e. samples as rows and genes as columns), and the distance between samples can be computed and plotted in a heatmap. This can then provide an overview of the similarities/dissimilarities between samples.
+- As count data is not normally distributed,`vst` function from `DESeq2` used to apply a *variance-stabilising transformation*. This transformation is roughly similar to putting the data on the log2 scale, while also dealing with the sampling variability of low counts. See Regularized logarithm transformation from [DESeq2 paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) for more thorough explanation. N.B. The `vst` function corrects for library size.
+- `vst` transformation has the option of being blinded to experimental design when estimating dispersion. By setting `blind = FALSE`, `vst` will use the design formula to calculate within-group variability, and if `blind = TRUE` it will calculate the across-all-sample variability. It does *not* use the design to remove variation in the data. Thus, it will not remove variation that can be associated with batch or other covariates.
+```{r, fig.height = 10, class.source='fold-show'}
+
+vsd <- vst(object = filter_dds, 
+           blind = FALSE # not blind to experimental design   
+           )
+
+sampleDists <- vsd %>% 
+  assay() %>% 
+  t() %>% # Transpose transformed count matrix, such that samples now rows.
+  dist(method = "euclidean") # Compute distances between rows of the matrix i.e. sample-to-sample distance
+  
+sampleDistMatrix <- sampleDists %>% 
+  as.matrix() # Convert to matrix
+
+rownames(sampleDistMatrix) <- str_c(vsd$Disease_Group, ", ", vsd$Source)
+colnames(sampleDistMatrix) <- NULL
+pheatmap <- pheatmap(sampleDistMatrix,
+                     clustering_distance_rows=sampleDists,
+                     clustering_distance_cols=sampleDists,
+                     col= viridis(n = 20), 
+                     main = "Heatmap: uncorrected data")
+
+```
+
+- Based on heatmap of sample-to-sample distances, some samples do appear to be grouping by disease, although it is not entirely clear cut.
+- Re-assuringly, there is mixing of the sources i.e. samples not clustering by brain bank.
+
+## Scree plot
+- A scree plot shows the fraction of total variance explained by each PC.
+```{r}
+pca_vsd <- prcomp(t(assay(vsd)))
+
+tibble(PC = c(1:72), 
+       sdev = pca_vsd$sdev) %>% 
+  dplyr::mutate(d = sdev^2, 
+                pev = d/sum(d), 
+                cev = cumsum(d)/sum(d))
+```
+
+```{r, fig.height = 8, class.source='fold-show',  fig.cap= "Plot of (a) the proportion of variance explained by each PC and (b) the cumulative proportion of variance explained with the addition of each PC."}
+
+ggarrange(pcascree(pca_vsd, type = "pev") + theme_rhr,
+          pcascree(pca_vsd, type = "cev") + theme_rhr, 
+          nrow = 2,
+          labels = c("a", "b"))
+
+
+```
+
+## Correlation of PC axes with sample covariates
+- Easiest way to determine associations between PC and co-variates is to perform a correlation analysis between PCs and co-variates. 
+- Figure and table below show that there is a significant association between PC1 and RIN, PC1 and Age at death (AoD), as well as proportions of several cell types.
+- Table shows FDR-corrected p-values of association.
+- Based on these analyses, will be important to correct any analyses for:
+    - RIN
+    - AoD 
+    - Several cell-type proportions.
+- **Note:** Sex not included in these analyses as all individuals are male.
+
+```{r, class.source='fold-show'}
+
+# Source function correlate PCs
+source(here::here("R", "correlatePCs.R"))
+
+PC_corr <- correlatePCs(pcaobj = pca_vsd, 
+                        coldata = colData(vsd) %>% 
+                          as.data.frame() %>% 
+                          dplyr::select(Disease_Group, Age_at_death, PMI, RIN, Braak_score,mapped_read_count, contains("_proportion")), 
+                        pcs = 1:72)
+
+# Some proportions so highly correlated that p-value = 0
+# Replace these 0s with p-value lower than minimum of 1.6E-9
+PC_corr_FDR_uncorrected <- PC_corr$pvalue %>% 
+  as_tibble() %>% 
+  dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+  tidyr::gather(key = covariate, value = p, -PC) %>% 
+  dplyr::mutate(p = case_when(p == 0 ~ 1 * 10^-12,
+                              TRUE ~ p),
+                FDR = p.adjust(p, method = "fdr"))
+
+```
+
+```{r, echo = F}
+
+PC_corr_FDR_uncorrected  %>% 
+  dplyr::inner_join(PC_corr$statistic %>% 
+                      as_tibble() %>% 
+                      dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+                      tidyr::gather(key = covariate, value = test_statistic, -PC)) %>% 
+  dplyr::arrange(FDR) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+```{r, fig.cap="Heatmap of significance of (cor)relations between PCA scores (only first 40) and sample covariates. Significance computed using Kruskal-Wallis for categorical variables and the cor.test based on Spearman's correlation for continuous variables. P-values were FDR-corrected."}
+
+PC_corr_FDR_mat <- PC_corr_FDR_uncorrected %>% 
+  dplyr::select(-p) %>% 
+  tidyr::spread(key = covariate, value = FDR) %>% 
+  dplyr::mutate(PC_number = str_replace(PC, "PC_", "") %>% 
+                  as.numeric()) %>% 
+  dplyr::arrange(PC_number) %>% 
+  dplyr::select(-PC_number, -PC) %>% 
+  as.matrix()
+
+PC_corr_FDR_mat <- PC_corr_FDR_mat[, match(colnames(PC_corr$statistic), colnames(PC_corr_FDR_mat))]
+rownames(PC_corr_FDR_mat) <- PC_corr_FDR_uncorrected %>% .[["PC"]] %>% unique()
+
+heatmap.2(x = -log10(PC_corr_FDR_mat[1:40,]) %>% t(), 
+          Colv = NA, 
+          Rowv = NA,
+          dendrogram = "none",
+          col = viridis(n = 50),
+          trace = "none",
+          density.info = "none", 
+          key = TRUE, 
+          key.xlab = "-log10(FDR-corrected p-value)", 
+          cexRow = 0.65, cexCol = 0.65)
+
+```
+
+- Worth noting that the "strongest effect" of disease group was with PC1. Cannot speak of correlations with disease group as testing using Kruskal-Wallis.
+- This is something we may want to bear in mind if we correct using PC axes -- could correct away effect of disease group.
+
+```{r, echo = F}
+PC_corr_FDR_uncorrected %>% 
+  dplyr::inner_join(PC_corr$statistic %>% 
+               as_tibble() %>% 
+               dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+               tidyr::gather(key = covariate, value = test_statistic, -PC)) %>% 
+  dplyr::filter(covariate == "Disease_Group") %>% 
+  arrange(FDR) %>% head()
+```
+
+# Data following correction with covariates as in original study: AoD, PMI and RIN {.tabset}
+> Start by correcting for same covariates as used in original study without cell-type proportions
+
+## Correcting the data
+- While PMI was not found significantly correlated with any PC axes (unlike AoD and RIN), will correct for this as this was also performed in the original study.
+- In the original study, RIN was binned into two categories, RIN <= 7 and RIN > 7. In this case, we will just use numbers as is.
+- As setting `blind = FALSE` in `vst` does not remove variation due to confounding covariates, this will have to be done using `limma::removeBatchEffect`, which removes any shifts in the log2-scale expression data that can be explained by confounders.
+- This batch-corrected data can then be plotted in a similar manner to above.
+- **Note:** `scale()` function is used to ensure that overall mean expression of each gene (i.e. as calculated with `rowMeans()`) remains unaffected by `limma::removeBatchEffect`. In general, `scale()` is also recommended as it ensures variables that are measured in different scales (e.g. age of death vs RIN) are comparable.
+```{r, class.source='fold-show'}
+
+vsd_covar <- vst(filter_dds,
+                     blind = FALSE)
+
+# Current design
+design(filter_dds)
+
+# Change design
+design(filter_dds) <- ~ Age_at_death + PMI + RIN + Disease_Group
+design(filter_dds)
+
+# Batch correcting and filtering vsd data 
+design <- model.matrix(design(filter_dds), data = colData(filter_dds))
+
+design
+
+design_treatment <- design[,c("(Intercept)", "Disease_GroupPD", "Disease_GroupPDD")]
+design_batch <- design[,c("Age_at_death", "PMI", "RIN")] %>% 
+  # standardise covariates
+  scale()
+
+assay(vsd_covar) <- limma::removeBatchEffect(assay(vsd_covar), design = design_treatment, covariates = design_batch)
+
+```
+
+## Heatmap of sample-to-sample distances
+- If we now plot the corrected vst-transformed data we see no improvement on clustering by disease group. If anything, same as before.
+```{r, fig.height = 10}
+
+sampleDists <- vsd_covar %>% 
+  assay() %>% 
+  t() %>% # Transpose transformed count matrix, such that samples now rows.
+  dist(method = "euclidean") # Compute distances between rows of the matrix i.e. sample-to-sample distance
+  
+sampleDistMatrix <- sampleDists %>% 
+  as.matrix() # Convert to matrix
+
+rownames(sampleDistMatrix) <- str_c(vsd_covar$Disease_Group, ", ", vsd_covar$Source)
+colnames(sampleDistMatrix) <- NULL
+pheatmap <- pheatmap(sampleDistMatrix,
+                     clustering_distance_rows=sampleDists,
+                     clustering_distance_cols=sampleDists,
+                     col= viridis(n = 20), 
+                     main = "Heatmap: corrected by AoD, PMI and RIN")
+
+``` 
+
+## Scree plot
+```{r, fig.height = 8, fig.cap = "Plot of (a) the proportion of variance explained by each PC and (b) the cumulative proportion of variance explained with the addition of each PC."}
+
+pca_vsd_covar <- prcomp(t(assay(vsd_covar)))
+
+ggarrange(pcascree(pca_vsd_covar, type = "pev") + theme_rhr,
+          pcascree(pca_vsd_covar, type = "cev") + theme_rhr, 
+          nrow = 2,
+          labels = c("a", "b"))
+
+```
+
+## Correlation of PC axes with remaining sample covariates
+- Removing effects of age of death, PMI and RIN result in no correlation of PCs with disease group.
+- Further, cell-type proportions still correlated with PC axes that explain most variation in the data.
+```{r}
+
+PC_corr <- 
+  correlatePCs(pcaobj = pca_vsd_covar, 
+               coldata = colData(vsd_covar) %>% 
+                                as.data.frame() %>% 
+                                dplyr::select(Disease_Group, Braak_score,mapped_read_count,contains("_proportion")), 
+               pcs = 1:72)
+
+# Replace p-values = 0, with low-pvalue
+PC_corr_FDR_covar <- PC_corr$pvalue %>% 
+  as_tibble() %>% 
+  dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+  tidyr::gather(key = covariate, value = p, -PC) %>% 
+  dplyr::mutate(p = case_when(p == 0 ~ 1*10^-12,
+                              TRUE ~ p),
+                FDR = p.adjust(p, method = "fdr"))
+
+PC_corr_FDR_covar %>% 
+  dplyr::inner_join(PC_corr$statistic %>% 
+               as_tibble() %>% 
+               dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+               tidyr::gather(key = covariate, value = test_statistic, -PC)) %>% 
+  dplyr::arrange(FDR) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+```{r, fig.cap="Heatmap of significance of (cor)relations between PCA scores (from vst-transformed data corrected by AoD, PMI and RIN) and sample covariates. Significance computed using Kruskal-Wallis for categorical variables and the cor.test based on Spearman's correlation for continuous variables. P-values were FDR-corrected."}
+
+PC_corr_FDR_mat <- PC_corr_FDR_covar %>% 
+  dplyr::select(-p) %>% 
+  tidyr::spread(key = covariate, value = FDR) %>% 
+  dplyr::mutate(PC_number = str_replace(PC, "PC_", "") %>% 
+                  as.numeric()) %>% 
+  dplyr::arrange(PC_number) %>% 
+  dplyr::select(-PC_number, -PC) %>% 
+  as.matrix()
+  
+PC_corr_FDR_mat <- PC_corr_FDR_mat[, match(colnames(PC_corr$statistic), colnames(PC_corr_FDR_mat))]
+rownames(PC_corr_FDR_mat) <- PC_corr_FDR_covar %>% .[["PC"]] %>% unique()
+
+heatmap.2(x = -log10(PC_corr_FDR_mat)[1:40,] %>% t(), 
+          Colv = NA, 
+          Rowv = NA,
+          dendrogram = "none",
+          col = viridis(n = 50),
+          trace = "none",
+          density.info = "none", 
+          key = TRUE, 
+          key.xlab = "-log10(FDR-corrected p-value)", 
+          cexRow = 0.65, cexCol = 0.65)
+
+```
+
+# Data following correction with covariates: AoD, PMI, RIN and cell-type proportions {.tabset}
+> Correcting for covariates, including cell-type proportions.
+
+## Correcting the data
+- Correcting for covariates found to be significantly correlated with PC axes from filtered, but uncorrected data. These include:
+```{r}
+
+# Get covar names
+covar_colnames <- c(PC_corr_FDR_uncorrected %>% 
+  dplyr::filter(FDR < 0.05, covariate != "Disease_Group") %>% 
+  .[["covariate"]] %>% 
+  unique(), "PMI") 
+
+covar_colnames
+
+```
+
+```{r, class.source='fold-show'}
+
+vsd_covar_ct <- vst(filter_dds,
+                     blind = FALSE)
+
+# Current design
+design(filter_dds)
+
+# Change design
+design(filter_dds) <- ~ Age_at_death + PMI + RIN + Astro_proportion + Excitatory_proportion + Inhibitory_proportion + Microglia_proportion + Oligo_proportion + OPC_proportion + Vascular_proportion + Disease_Group
+design(filter_dds)
+
+# Batch correcting and filtering vsd data 
+design <- model.matrix(design(filter_dds), data = colData(filter_dds))
+
+design
+
+design_treatment <- design[,c("(Intercept)", "Disease_GroupPD", "Disease_GroupPDD")]
+design_batch <- design[,covar_colnames] %>% 
+  # standardise covariates
+  scale()
+
+assay(vsd_covar_ct) <- limma::removeBatchEffect(assay(vsd_covar_ct), design = design_treatment, covariates = design_batch)
+
+```
+
+## Heatmap of sample-to-sample distances
+- If we now plot the corrected vst-transformed data we see some separation of disease groups -- more so than when only correcting for AoD, PMI and RIN. But still not entirely separated.
+```{r, fig.height = 10}
+
+sampleDists <- vsd_covar_ct %>% 
+  assay() %>% 
+  t() %>% # Transpose transformed count matrix, such that samples now rows.
+  dist(method = "euclidean") # Compute distances between rows of the matrix i.e. sample-to-sample distance
+  
+sampleDistMatrix <- sampleDists %>% 
+  as.matrix() # Convert to matrix
+
+rownames(sampleDistMatrix) <- str_c(vsd_covar_ct$Disease_Group, ", ", vsd_covar_ct$Source)
+colnames(sampleDistMatrix) <- NULL
+pheatmap <- pheatmap(sampleDistMatrix,
+                     clustering_distance_rows=sampleDists,
+                     clustering_distance_cols=sampleDists,
+                     col= viridis(n = 20), 
+                     main = "Heatmap: corrected by AoD, PMI, RIN, and cell-type proportions")
+
+``` 
+
+## Scree plot
+```{r, fig.height = 8, fig.cap = "Plot of (a) the proportion of variance explained by each PC and (b) the cumulative proportion of variance explained with the addition of each PC."}
+
+pca_vsd_covar_ct <- prcomp(t(assay(vsd_covar_ct)))
+
+ggarrange(pcascree(pca_vsd_covar, type = "pev") + theme_rhr,
+          pcascree(pca_vsd_covar, type = "cev") + theme_rhr, 
+          nrow = 2,
+          labels = c("a", "b"))
+
+```
+
+## Correlation of PC axes with remaining sample covariates
+- By removing effects of age of death, PMI, RIN and changes in any cell-type proportion, we do see a correlation (only nominally significant) of disease group with PC axes 2, 4 and 6. 
+```{r}
+
+PC_corr <- 
+  correlatePCs(pcaobj = pca_vsd_covar_ct, 
+               coldata = colData(vsd_covar_ct) %>% 
+                                as.data.frame() %>% 
+                                dplyr::select(Disease_Group, 
+                                              Braak_score,mapped_read_count), 
+               pcs = 1:72)
+
+# Replace p-values = 0, with low-pvalue
+PC_corr_FDR_covar_ct <- PC_corr$pvalue %>% 
+  as_tibble() %>% 
+  dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+  tidyr::gather(key = covariate, value = p, -PC) %>% 
+  dplyr::mutate(p = case_when(p == 0 ~ 1*10^-12,
+                              TRUE ~ p),
+                FDR = p.adjust(p, method = "fdr"))
+
+PC_corr_FDR_covar_ct %>% 
+  dplyr::inner_join(PC_corr$statistic %>% 
+               as_tibble() %>% 
+               dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+               tidyr::gather(key = covariate, value = test_statistic, -PC)) %>% 
+  dplyr::arrange(FDR) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+```{r, fig.cap="Heatmap of significance of (cor)relations between PCA scores (from vst-transformed data corrected by AoD, RIN, and cell-type proportions) and sample covariates. Significance computed using Kruskal-Wallis for categorical variables and the cor.test based on Spearman's correlation for continuous variables. P-values were FDR-corrected."}
+
+PC_corr_FDR_mat <- PC_corr_FDR_covar_ct %>% 
+  dplyr::select(-p) %>% 
+  tidyr::spread(key = covariate, value = FDR) %>% 
+  dplyr::mutate(PC_number = str_replace(PC, "PC_", "") %>% 
+                  as.numeric()) %>% 
+  dplyr::arrange(PC_number) %>% 
+  dplyr::select(-PC_number, -PC) %>% 
+  as.matrix()
+  
+PC_corr_FDR_mat <- PC_corr_FDR_mat[, match(colnames(PC_corr$statistic), colnames(PC_corr_FDR_mat))]
+rownames(PC_corr_FDR_mat) <- PC_corr_FDR_covar_ct %>% .[["PC"]] %>% unique()
+
+heatmap.2(x = -log10(PC_corr_FDR_mat)[1:40,] %>% t(), 
+          Colv = NA, 
+          Rowv = NA,
+          dendrogram = "none",
+          col = viridis(n = 50),
+          trace = "none",
+          density.info = "none", 
+          key = TRUE, 
+          key.xlab = "-log10(FDR-corrected p-value)", 
+          cexRow = 0.65, cexCol = 0.65)
+
+```
+
+# Data following correction with PC axes {.tabset}
+> Given that we have corrected our own data using PC axes, worth seeing how well that would work for this dataset.
+
+## Correcting the data
+- If we filter the uncorrected PC correlates for FDR < 0.05, we see that of those PC axes significantly correlated with covariates, PC axes 1, 2 and 4 appear to be those axes that correlate with most covariates.
+- It may be preferable to correct using PC axes because the number of covariates included in design is lower using PC axes, as opposed to individual covariates (where we are including 9), thus increasing the degrees of freedom in the final model.
+
+```{r, echo = F}
+
+PC_corr_FDR_uncorrected %>% 
+  dplyr::filter(FDR < 0.05) %>% 
+  dplyr::arrange(FDR) 
+
+```
+- We can extract these PCs from the pca object returned by `prcomp()` and use these to correct our vst-transformed data, as opposed to using covariates.
+```{r, class.source='fold-show'}
+
+# Extract coordinates of individuals on principle components 1-4
+PC_axes <- pca_vsd$x[, str_c("PC", 1:4)] %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column(var = "recount_id")
+
+# Include PC axes in filter_dds colData & design
+filter_dds <- DESeqDataSetFromMatrix(countData = assay(filter_dds),
+                              colData = colData(filter_dds) %>% 
+                                as_tibble() %>% 
+                                dplyr::inner_join(PC_axes),
+                              design = ~ PC1 + PC2 + PC3 + PC4 + Disease_Group
+                              )
+
+vsd_PCs <- vst(filter_dds,
+               blind = FALSE)
+
+# Batch correcting and filtering vsd data 
+design <- model.matrix(design(filter_dds), data = colData(filter_dds))
+
+design
+
+# Split into treatment and batch effects
+design_treatment <- design[,c("(Intercept)", "Disease_GroupPD", "Disease_GroupPDD")]
+design_batch <- 
+  design[,str_c("PC", 1:4)] %>%
+  # standardise covariates
+  scale()
+
+# Correction with limma
+assay(vsd_PCs) <- limma::removeBatchEffect(assay(vsd_PCs), design = design_treatment, covariates = design_batch)
+
+```
+
+## Heatmap of sample-to-sample distances
+- Vst-trasnformed data corrected with PC axes looks very uniform across all samples (apart from one sample), making it hard to distinguish between groups. 
+- While there is some clustering within disease groups, it is still not entirely clear cut.
+```{r, fig.height = 10}
+
+sampleDists <- vsd_PCs %>% 
+  assay() %>% 
+  t() %>% # Transpose transformed count matrix, such that samples now rows.
+  dist(method = "euclidean") # Compute distances between rows of the matrix i.e. sample-to-sample distance
+  
+sampleDistMatrix <- sampleDists %>% 
+  as.matrix() # Convert to matrix
+
+rownames(sampleDistMatrix) <- str_c(vsd_PCs$Disease_Group, ", ", vsd_PCs$Source)
+colnames(sampleDistMatrix) <- NULL
+pheatmap <- pheatmap(sampleDistMatrix,
+                     clustering_distance_rows=sampleDists,
+                     clustering_distance_cols=sampleDists,
+                     col= viridis(n = 20), 
+                     main = "Heatmap: corrected by PC axes 1-4")
+``` 
+
+## Scree plot
+```{r, fig.height = 8, fig.cap = "Plot of (a) the proportion of variance explained by each PC and (b) the cumulative proportion of variance explained with the addition of each PC."}
+
+pca_vsd_PCs <- prcomp(t(assay(vsd_PCs)))
+
+ggarrange(pcascree(pca_vsd_PCs, type = "pev") + theme_rhr,
+          pcascree(pca_vsd_PCs, type = "cev") + theme_rhr, 
+          nrow = 2,
+          labels = c("a", "b"))
+
+```
+
+## Correlation of PC axes with remaining sample covariates
+- Significant correlation of Braak score with PC3 and OPC proportions with PC4. 
+- Disease group correlates with PC20, which explains very little variation in the dataset.
+```{r}
+
+PC_corr_PCs <- correlatePCs(pcaobj = pca_vsd_PCs, 
+                        coldata = colData(vsd_PCs) %>% 
+                          as.data.frame() %>% 
+                          dplyr::select(Disease_Group, Age_at_death, PMI, RIN, Braak_score,mapped_read_count, contains("_proportion")), 
+                        pcs = 1:72)
+
+PC_corr_FDR_PCs <- PC_corr_PCs$pvalue %>% 
+  as_tibble() %>% 
+  dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+  tidyr::gather(key = covariate, value = p, -PC) %>% 
+  dplyr::mutate(FDR = p.adjust(p, method = "fdr"))
+
+PC_corr_FDR_PCs %>% 
+  dplyr::inner_join(PC_corr_PCs$statistic %>% 
+               as_tibble() %>% 
+               dplyr::mutate(PC = str_c("PC_", c(1:72))) %>% 
+               tidyr::gather(key = covariate, value = test_statistic, -PC)) %>% 
+  dplyr::arrange(FDR) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+```{r, fig.cap="Heatmap of significance of (cor)relations between PCA scores (from vst-transformed data corrected by PC axes 1-4) and sample covariates. Significance computed using Kruskal-Wallis for categorical variables and the cor.test based on Spearman's correlation for continuous variables. P-values were FDR-corrected."}
+
+PC_corr_FDR_mat <- PC_corr_FDR_PCs %>% 
+  dplyr::select(-p) %>% 
+  tidyr::spread(key = covariate, value = FDR) %>% 
+  dplyr::mutate(PC_number = str_replace(PC, "PC_", "") %>% 
+                  as.numeric()) %>% 
+  dplyr::arrange(PC_number) %>% 
+  dplyr::select(-PC_number, -PC) %>% 
+  as.matrix()
+  
+PC_corr_FDR_mat <- PC_corr_FDR_mat[, match(colnames(PC_corr_PCs$statistic), colnames(PC_corr_FDR_mat))]
+rownames(PC_corr_FDR_mat) <- PC_corr_FDR_PCs %>% .[["PC"]] %>% unique()
+
+heatmap.2(x = -log10(PC_corr_FDR_mat)[1:40,] %>% t(), 
+          Colv = NA, 
+          Rowv = NA,
+          dendrogram = "none",
+          col = viridis(n = 50),
+          trace = "none",
+          density.info = "none", 
+          key = TRUE, 
+          key.xlab = "-log10(FDR-corrected p-value)", 
+          cexRow = 0.65, cexCol = 0.65)
+
+```
+
+# Conclusions
+- No clear separation of disease groups following correction. Clearest separation is correction by AoD, PMI, RIN and cell-type proportions, although that involves removing 10 degrees of freedom from the final model and is also not a clean separation.
+- While correcting for PC axes 1-4 worked well for our own data, in terms of separating disease groups, it is not clear it would work as well here. 
+
+```{r, fig.height = 15, fig.cap="PCA plot of individuals grouped by disease group. Each plot represents data that is (a) uncorrected, (B) corrected by AoD, PMI and RIN, (c) corrected by AoD, PMI, RIN and all cell-type proportions or (d) corrected by PC axes 1-4. Ellipses represent the 95% confidence level. Points and ellipses are coloured by disease group."}
+
+list_vsd <- list(pca_vsd, pca_vsd_covar, pca_vsd_covar_ct, pca_vsd_PCs)
+plot_list <- vector(mode = "list", length = 4)
+titles <- c("Uncorrected", "Corrected by AoD, PMI and RIN", "Corrected by AoD, PMI, RIN and cell-type proportions", "Corrected by PC axes 1-4")
+
+for(i in 1:length(list_vsd)){
+  
+  plot_list[[i]] <- fviz_pca_ind(list_vsd[[i]],
+                                    geom.ind = "point", # show points only (nbut not "text")
+                                    col.ind = colData(vsd)[,c("Disease_Group")], # color by groups
+                                    addEllipses = TRUE, ellipse.type = "confidence", # Confidence ellipses
+                                    palette =  pal_jco("default", alpha = 0.9)(10)[c(3,9,1,2)],
+                                    mean.point = FALSE,
+                                    legend.title = "Disease group", 
+                                    title = titles[i]
+  ) +
+    coord_cartesian(xlim = c(-120, 120))
+  
+}
+
+ggarrange(plotlist = plot_list,
+          labels = c("a", "b", "c", "d"),
+          nrow = 4)
+
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,218 @@
+nohup: ignoring input
+-- Attaching packages --------------------------------------- tidyverse 1.2.1 --
+v ggplot2 3.1.1     v purrr   0.3.2
+v tibble  2.1.1     v dplyr   0.8.1
+v tidyr   0.8.3     v stringr 1.4.0
+v readr   1.3.1     v forcats 0.4.0
+-- Conflicts ------------------------------------------ tidyverse_conflicts() --
+x dplyr::filter() masks stats::filter()
+x dplyr::lag()    masks stats::lag()
+Loading read group information from /home/rreynolds/projects/Aim2_PDsequencing/data/Flowcell_info.txt 
+Parsed with column specification:
+cols(
+  Flowcell = col_character(),
+  Lane = col_character(),
+  full_name = col_character(),
+  sample_name = col_character(),
+  `Barcode sequence` = col_character(),
+  PU = col_character()
+)
+[1] "2019-07-14 21:13:17 - STAR alignment for samples: PD332_A2B1_GM-T, PD341_A2B2_GM-T, PD732_A2B2_GM-T, PDC05_A1A2_GM-T, PD566_A1B4_GM-T, PD366_A2B3_GM-T, PD413_A2B1_GM-T, PDC22_A1E3_GM-T, PD706_A1A1_GM-T, PD415_A2B2_GM-T, PD416_A2D3_GM-T, PDC34_A1B3_GM-T, PD563_A1C1_GM-T, PD523_A2B3_GM-T, PDC87_A1A4_GM-T, PD163_A1B1_GM-T, PD678_A1B5_GM-T, PD747_A2A9_GM-T, PD115_A1B1_GM-T, PD666_A1A4_GM-T, PDC91_A1B4_GM-T, PD294_P1B1_GM-T, PD531_A1B3_GM-T, PD683_A1B5_GM-T, Undetermined"
+[1] "2019-07-14 21:13:17 - aligning sample: PD332_A2B1_GM-T"
+Jul 14 21:13:17 ..... started STAR run
+Jul 14 21:13:17 ..... loading genome
+Jul 14 21:13:48 ..... inserting junctions into the genome indices
+Jul 14 21:21:37 ..... started mapping
+Jul 15 01:52:21 ..... finished mapping
+Jul 15 01:52:28 ..... started sorting BAM
+Jul 15 01:55:46 ..... finished successfully
+[1] "2019-07-15 01:56:05 - aligning sample: PD341_A2B2_GM-T"
+Jul 15 01:56:05 ..... started STAR run
+Jul 15 01:56:05 ..... loading genome
+Jul 15 01:56:39 ..... inserting junctions into the genome indices
+Jul 15 02:04:34 ..... started mapping
+Jul 15 04:14:13 ..... finished mapping
+Jul 15 04:14:20 ..... started sorting BAM
+Jul 15 04:18:39 ..... finished successfully
+[1] "2019-07-15 04:19:00 - aligning sample: PD732_A2B2_GM-T"
+Jul 15 04:19:00 ..... started STAR run
+Jul 15 04:19:00 ..... loading genome
+Jul 15 04:19:33 ..... inserting junctions into the genome indices
+Jul 15 04:27:15 ..... started mapping
+Jul 15 06:11:44 ..... finished mapping
+Jul 15 06:11:51 ..... started sorting BAM
+Jul 15 06:16:48 ..... finished successfully
+[1] "2019-07-15 06:17:11 - aligning sample: PDC05_A1A2_GM-T"
+Jul 15 06:17:11 ..... started STAR run
+Jul 15 06:17:11 ..... loading genome
+Jul 15 06:17:43 ..... inserting junctions into the genome indices
+Jul 15 06:25:34 ..... started mapping
+Jul 15 08:21:08 ..... finished mapping
+Jul 15 08:21:15 ..... started sorting BAM
+Jul 15 08:27:15 ..... finished successfully
+[1] "2019-07-15 08:27:40 - aligning sample: PD566_A1B4_GM-T"
+Jul 15 08:27:40 ..... started STAR run
+Jul 15 08:27:40 ..... loading genome
+Jul 15 08:28:13 ..... inserting junctions into the genome indices
+Jul 15 08:36:02 ..... started mapping
+Jul 15 14:14:31 ..... finished mapping
+Jul 15 14:14:36 ..... started sorting BAM
+Jul 15 14:20:59 ..... finished successfully
+[1] "2019-07-15 14:21:12 - aligning sample: PD366_A2B3_GM-T"
+Jul 15 14:21:12 ..... started STAR run
+Jul 15 14:21:12 ..... loading genome
+Jul 15 14:21:51 ..... inserting junctions into the genome indices
+Jul 15 14:29:43 ..... started mapping
+Jul 15 20:21:35 ..... finished mapping
+Jul 15 20:21:40 ..... started sorting BAM
+Jul 15 20:27:24 ..... finished successfully
+[1] "2019-07-15 20:27:39 - aligning sample: PD413_A2B1_GM-T"
+Jul 15 20:27:40 ..... started STAR run
+Jul 15 20:27:40 ..... loading genome
+Jul 15 20:28:09 ..... inserting junctions into the genome indices
+Jul 15 20:35:41 ..... started mapping
+Jul 15 22:34:03 ..... finished mapping
+Jul 15 22:34:09 ..... started sorting BAM
+Jul 15 22:43:37 ..... finished successfully
+[1] "2019-07-15 22:43:55 - aligning sample: PDC22_A1E3_GM-T"
+Jul 15 22:43:56 ..... started STAR run
+Jul 15 22:43:56 ..... loading genome
+Jul 15 22:44:39 ..... inserting junctions into the genome indices
+Jul 15 22:52:26 ..... started mapping
+Jul 16 01:13:59 ..... finished mapping
+Jul 16 01:14:06 ..... started sorting BAM
+Jul 16 01:18:39 ..... finished successfully
+[1] "2019-07-16 01:19:03 - aligning sample: PD706_A1A1_GM-T"
+Jul 16 01:19:03 ..... started STAR run
+Jul 16 01:19:03 ..... loading genome
+Jul 16 01:19:42 ..... inserting junctions into the genome indices
+Jul 16 01:27:48 ..... started mapping
+Jul 16 04:59:58 ..... finished mapping
+Jul 16 05:00:04 ..... started sorting BAM
+Jul 16 05:04:15 ..... finished successfully
+[1] "2019-07-16 05:04:40 - aligning sample: PD415_A2B2_GM-T"
+Jul 16 05:04:40 ..... started STAR run
+Jul 16 05:04:40 ..... loading genome
+Jul 16 05:05:17 ..... inserting junctions into the genome indices
+Jul 16 05:13:06 ..... started mapping
+Jul 16 07:49:29 ..... finished mapping
+Jul 16 07:49:36 ..... started sorting BAM
+Jul 16 07:53:03 ..... finished successfully
+[1] "2019-07-16 07:53:25 - aligning sample: PD416_A2D3_GM-T"
+Jul 16 07:53:25 ..... started STAR run
+Jul 16 07:53:25 ..... loading genome
+Jul 16 07:53:58 ..... inserting junctions into the genome indices
+Jul 16 08:01:46 ..... started mapping
+Jul 16 10:52:59 ..... finished mapping
+Jul 16 10:53:06 ..... started sorting BAM
+Jul 16 10:57:06 ..... finished successfully
+[1] "2019-07-16 10:57:27 - aligning sample: PDC34_A1B3_GM-T"
+Jul 16 10:57:27 ..... started STAR run
+Jul 16 10:57:27 ..... loading genome
+Jul 16 10:57:58 ..... inserting junctions into the genome indices
+Jul 16 11:05:37 ..... started mapping
+Jul 16 13:15:07 ..... finished mapping
+Jul 16 13:15:13 ..... started sorting BAM
+Jul 16 13:19:27 ..... finished successfully
+[1] "2019-07-16 13:19:50 - aligning sample: PD563_A1C1_GM-T"
+Jul 16 13:19:51 ..... started STAR run
+Jul 16 13:19:51 ..... loading genome
+Jul 16 13:20:23 ..... inserting junctions into the genome indices
+Jul 16 13:28:19 ..... started mapping
+Jul 16 15:49:24 ..... finished mapping
+Jul 16 15:49:31 ..... started sorting BAM
+Jul 16 15:54:50 ..... finished successfully
+[1] "2019-07-16 15:55:15 - aligning sample: PD523_A2B3_GM-T"
+Jul 16 15:55:15 ..... started STAR run
+Jul 16 15:55:15 ..... loading genome
+Jul 16 15:55:47 ..... inserting junctions into the genome indices
+Jul 16 16:03:40 ..... started mapping
+Jul 16 20:07:19 ..... finished mapping
+Jul 16 20:07:25 ..... started sorting BAM
+Jul 16 20:11:25 ..... finished successfully
+[1] "2019-07-16 20:11:49 - aligning sample: PDC87_A1A4_GM-T"
+Jul 16 20:11:49 ..... started STAR run
+Jul 16 20:11:49 ..... loading genome
+Jul 16 20:12:23 ..... inserting junctions into the genome indices
+Jul 16 20:20:12 ..... started mapping
+Jul 16 22:34:05 ..... finished mapping
+Jul 16 22:34:11 ..... started sorting BAM
+Jul 16 22:39:00 ..... finished successfully
+[1] "2019-07-16 22:39:24 - aligning sample: PD163_A1B1_GM-T"
+Jul 16 22:39:24 ..... started STAR run
+Jul 16 22:39:24 ..... loading genome
+Jul 16 22:39:53 ..... inserting junctions into the genome indices
+Jul 16 22:47:47 ..... started mapping
+Jul 17 03:40:31 ..... finished mapping
+Jul 17 03:40:38 ..... started sorting BAM
+Jul 17 03:44:39 ..... finished successfully
+[1] "2019-07-17 03:45:01 - aligning sample: PD678_A1B5_GM-T"
+Jul 17 03:45:01 ..... started STAR run
+Jul 17 03:45:01 ..... loading genome
+Jul 17 03:45:35 ..... inserting junctions into the genome indices
+Jul 17 03:53:27 ..... started mapping
+Jul 17 08:30:15 ..... finished mapping
+Jul 17 08:30:22 ..... started sorting BAM
+Jul 17 08:34:50 ..... finished successfully
+[1] "2019-07-17 08:35:14 - aligning sample: PD747_A2A9_GM-T"
+Jul 17 08:35:14 ..... started STAR run
+Jul 17 08:35:14 ..... loading genome
+Jul 17 08:35:44 ..... inserting junctions into the genome indices
+Jul 17 08:43:32 ..... started mapping
+Jul 17 10:21:51 ..... finished mapping
+Jul 17 10:21:58 ..... started sorting BAM
+Jul 17 10:26:18 ..... finished successfully
+[1] "2019-07-17 10:26:39 - aligning sample: PD115_A1B1_GM-T"
+Jul 17 10:26:39 ..... started STAR run
+Jul 17 10:26:39 ..... loading genome
+Jul 17 10:27:11 ..... inserting junctions into the genome indices
+Jul 17 10:34:54 ..... started mapping
+Jul 17 16:17:47 ..... finished mapping
+Jul 17 16:17:52 ..... started sorting BAM
+Jul 17 16:24:55 ..... finished successfully
+[1] "2019-07-17 16:25:09 - aligning sample: PD666_A1A4_GM-T"
+Jul 17 16:25:09 ..... started STAR run
+Jul 17 16:25:09 ..... loading genome
+Jul 17 16:25:39 ..... inserting junctions into the genome indices
+Jul 17 16:33:29 ..... started mapping
+Jul 17 19:14:52 ..... finished mapping
+Jul 17 19:14:57 ..... started sorting BAM
+Jul 17 19:23:10 ..... finished successfully
+[1] "2019-07-17 19:23:27 - aligning sample: PDC91_A1B4_GM-T"
+Jul 17 19:23:28 ..... started STAR run
+Jul 17 19:23:28 ..... loading genome
+Jul 17 19:23:58 ..... inserting junctions into the genome indices
+Jul 17 19:31:30 ..... started mapping
+Jul 17 23:09:44 ..... finished mapping
+Jul 17 23:09:49 ..... started sorting BAM
+Jul 17 23:17:24 ..... finished successfully
+[1] "2019-07-17 23:17:42 - aligning sample: PD294_P1B1_GM-T"
+Jul 17 23:17:43 ..... started STAR run
+Jul 17 23:17:43 ..... loading genome
+Jul 17 23:18:16 ..... inserting junctions into the genome indices
+Jul 17 23:26:39 ..... started mapping
+Jul 18 04:58:54 ..... finished mapping
+Jul 18 04:58:59 ..... started sorting BAM
+Jul 18 05:03:12 ..... finished successfully
+[1] "2019-07-18 05:03:35 - aligning sample: PD531_A1B3_GM-T"
+Jul 18 05:03:35 ..... started STAR run
+Jul 18 05:03:35 ..... loading genome
+Jul 18 05:04:10 ..... inserting junctions into the genome indices
+Jul 18 05:11:54 ..... started mapping
+Jul 18 08:25:57 ..... finished mapping
+Jul 18 08:26:03 ..... started sorting BAM
+Jul 18 08:29:57 ..... finished successfully
+[1] "2019-07-18 08:30:19 - aligning sample: PD683_A1B5_GM-T"
+Jul 18 08:30:20 ..... started STAR run
+Jul 18 08:30:20 ..... loading genome
+Jul 18 08:30:54 ..... inserting junctions into the genome indices
+Jul 18 08:38:35 ..... started mapping
+Jul 18 11:11:19 ..... finished mapping
+Jul 18 11:11:25 ..... started sorting BAM
+Jul 18 11:17:08 ..... finished successfully
+[1] "2019-07-18 11:17:23 - aligning sample: Undetermined"
+Jul 18 11:17:24 ..... started STAR run
+Jul 18 11:17:24 ..... loading genome
+Jul 18 11:18:05 ..... inserting junctions into the genome indices
+Jul 18 11:26:59 ..... started mapping
+Terminated

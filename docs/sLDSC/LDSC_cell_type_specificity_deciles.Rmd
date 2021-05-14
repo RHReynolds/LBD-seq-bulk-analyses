@@ -1,0 +1,476 @@
+---
+title: 'sLDSC: cell-type specificity deciles'
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+
+library(corrplot)
+library(devtools)
+library(DT)
+library(doParallel)
+library(foreach)
+library(ggplot2)
+library(ggdendro)
+library(ggpubr)
+library(GeneOverlap)
+library(LDSCforRyten)
+library(tidyverse)
+library(readxl)
+library(rtracklayer)
+library(UpSetR)
+devtools::load_all(path = "/home/rreynolds/packages/LDSCforRyten/")
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, message= F, warning = F)
+
+```
+
+> Aim: use stratified LDSC to test whether PD heritability enriches within top 10% most cell-type specific genes and to check whether there is a linear relationship between heritability enrichment values and cell-type specificity deciles.
+
+# File paths for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+source(here::here("R", "EWCE_related_functions.R"))
+source(here::here("R", "upsetR_common.R"))
+
+```
+
+# Background
+
+s-LDSC is a method that allows you to determine the relative contribution of an annotation to disease heritability. We use the co-efficient p-value as our read-out for significance, as it tells us whether our annotation is significantly contributing to disease heritability after we have accounted for underlying genetic architecture (as represented by a 53-annotation baseline model, which tags coding regions, enhancer regions, histones, promoters, etc.).
+
+# Running s-LDSC
+
+## Creating gene lists
+- We will be creating these from specificity matrices generated from our snRNA-seq data.
+- Note that a separate specificity matrix was prepared for each disease group i.e. control, PD, PDD and DLB. Thus, we will be generating 320 gene lists (4 disease groups * 8 cell types * 10 deciles).
+- We will run each decile through s-LDSC to check whether we have a linear relationship between enrichment and specificity deciles. Ultimately, however, we will only display coefficient p-values for the top 10% of cell-type specific genes.
+
+### Cell-type clustering
+- It is worth knowing how these cell types cluster, thus dendrograms plotted below.
+
+```{r, fig.cap = "Dendrogram showing clustering of cell type specificity quantiles (n = 40) from each cell-type specificity matrix. Distance shown is euclidian distance."}
+
+# Load ctd files and plot dendrograms
+ctd_files <- list.files(
+  file.path(
+    path_to_results,
+    "snRNA/specificity_matrices/2020_Feb"
+    ), 
+  pattern = "ctd", 
+  full.names = T)
+
+# Inititate empty vectors
+plot_list <- vector(mode = "list", length = length(ctd_files))
+ctd_list <- vector(mode = "list", length = length(ctd_files))
+
+# Loop to load data and plot dendrogram
+for(i in 1:length(ctd_files)){
+  
+  # Load ctd
+  ctd_list[[i]] <- readRDS(ctd_files[i])
+  
+  # Extract file name
+  title <- 
+    ctd_files[i] %>% 
+    str_replace(".*/", "") %>% 
+    str_replace("\\..*", "") %>% 
+    str_replace(".*_", "")
+  
+  # Name list
+  names(ctd_list)[i] <- title
+  
+  # Create dendrogram
+  plot_list[[i]] <- 
+    plot_dendrogram(ctd_list[[i]] , level = 1) + 
+    labs(title = str_c("Dendrogram for ", title))
+  
+  
+}
+
+ggarrange(plotlist = plot_list)
+
+```
+
+- In controls, we see that endothelial cells and pericytes cluster together (as expected), but also seperately from all other cell types. All other cell types form a different branch wherein neuronal cell types cluster together (excitatory and inhibitory); oligodendrocytes, OPCs and astrocytes cluster together; and finally, microglia lie alone.
+- Only DLB appears to cluster differently, in that:
+    - Microglia are now in the same branch that includes endothelial cells and pericytes.
+    - Also, OPCs now clustering with astrocytes (as opposed to oligodendrocytes).
+    
+### Specificity across deciles
+- Now let's split these specificity matrices into deciles and check that specificity increases across deciles.
+- While doing this, also create a merge of the endothelial and pericyte cell types i.e. vascular cells.
+
+```{r, fig.height = 8, fig.cap = "Plot of specificity values across quantiles in each cell type in each disease group."}
+
+# Create deciles dataframe
+decile_df <- ctd_list %>% 
+  lapply(., function(ctd){
+    
+    # Only using level 1 annotations
+    ctd[[1]]$specificity %>% 
+      as.data.frame() %>% 
+      tibble::rownames_to_column(var = "gene") %>% 
+      dplyr::mutate(Vascular = Endo + Per) %>% 
+      tidyr::gather(key = "cell_type", value = "specificity", -gene) %>% 
+      dplyr::group_by(cell_type) %>% 
+      dplyr::mutate(quantile = ntile(specificity, 10))
+  }) %>% 
+  qdapTools::list_df2df(col = "Disease_Group")
+
+# Check order of deciles
+decile_df %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD", "DLB"))) %>% 
+  ggplot(aes(x = as.factor(quantile), y = specificity)) +
+  geom_boxplot() +
+  facet_grid(Disease_Group ~ cell_type) +
+  labs(x = "Quantile") +
+  theme_rhr
+
+# Check that within each disease group and decile equal number of genes across cell types
+decile_df %>% 
+  dplyr::group_by(quantile, Disease_Group, cell_type) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::arrange(Disease_Group, quantile, cell_type)
+
+```
+
+- As expected, specificity increases across the deciles.
+
+## Overlap between top 10% most cell-type specific genes
+- When running our lists, it is worth knowing just how much our lists overlap. As we will only report the coefficient p-value for the top 10% in any publication, let's check the overlap here.
+
+```{r, fig.height = 12, out.width = '100%', warning = F, fig.cap= "**Figure:** Overlap between top 10% cell-type specificity lists from each disease group. In the matrix (lower half of panel), rows represent the top 10% cell-type specificity lists and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across lists. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each list is shown to the left of the matrix. Only the top 25 intersections are displayed."}
+
+# Create gene list
+gene_list <- 
+  decile_df %>% 
+  dplyr::filter(quantile == 10) %>% 
+  dplyr::mutate(cell_type_disease = str_c(cell_type, ":", Disease_Group)) %>% 
+  group_split(cell_type, Disease_Group)
+
+names(gene_list) <- gene_list %>% 
+  lapply(., function(df){
+    df %>% .[["cell_type_disease"]] %>% unique()
+  })
+
+upset(fromList(gene_list %>% 
+  lapply(., function(df){
+    df %>% .[["gene"]]
+  })), 
+  sets = names(gene_list), 
+  keep.order = TRUE, 
+  nintersects = 25,
+  order.by = "freq")
+
+```
+
+- As might be expected, large overlaps between the same cell type across disease groups, as well as between endo/per and the merged of them, vascular.
+- There are, however, some genes unique to each cell type within each condition, with the highest number of unique genes found in PD:endo.
+- Given the large degree of overlap, we may have to think about whether we want to run s-LDSC using all top 10% genes and those that are unique to each list. Alternatively, we would have to condition on each cell type.
+
+## Creating LDSC annotations and running LDSC
+- In addition to creating annotations with SNPs found within start and end site for transcription, we also include SNPs found within 100kb upstream and downstream of these sites (as in: https://www.ncbi.nlm.nih.gov/pubmed/29632380)
+- As we are looking for critical cell types/tissues via co-efficient p-value, then according to [developer guidelines](https://data.broadinstitute.org/alkesgroup/LDSCORE/readme_baseline_versions) on baseline model  we should use baseline LD v1.2 (53 annotations). 
+- This was run via nohup using the following script: [LDSC_cell_type_specificity_deciles.R](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/LDSC_cell_type_specificity_deciles.R)
+
+```{bash, eval = F, class.source='fold-hide'}
+
+nohup Rscript \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/LDSC_cell_type_specificity_deciles.R \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/LDSC_cell_type_specificity_deciles.log&
+
+# LBD GWAS
+nohup Rscript \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/LDSC_cell_type_specificity_deciles.R \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/LDSC_cell_type_specificity_deciles_LBD.log&
+
+```
+
+- Ran with the following GWASs:
+```{r GWAS selection, eval = T, echo = F}
+
+# Can be downloaded from: "https://github.com/RHReynolds/LDSCforRyten/raw/master/misc/LDSC_GWAS_details.xlsx"
+read_excel(path = "/home/rreynolds/packages/LDSCforRyten/misc/LDSC_GWAS_details.xlsx") %>% 
+  dplyr::filter(str_detect(Original_name, "hg38") | Original_name == "AD2019") %>% 
+  dplyr::select(-contains("Full_paths"), -Original_name) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+# Results
+- Can multiple correct in a number of ways.
+    - Choice of method e.g. Bonferroni (stringent) vs FDR. Will opt for FDR.
+    - Number of tests to correct for. In our case, will probably want to correct within a disease group and potentially across GWASs, too.
+        - Note: In most recent Skene paper (https://www.biorxiv.org/content/10.1101/528463v3) they correct by number of cell types within a dataset. They **do not** correct for the number of GWASs tested.
+- Will apply two forms of multiple test correction:
+    1. Stringent: multiple test correct across all cell types and GWASs run within a disease group.
+    2. Leniant: filter for well-powered GWASs (i.e. AD, PD and PD AOO) and multiple test correct across all cell types within a disease group (i.e. correcting by the number of cell types).
+```{r, eval = F}
+
+file_paths <- 
+  list.files(path = 
+               file.path(
+                 path_to_raw_data,
+                 "ldsc_annotations/celltype.deciles/"
+               ),
+             pattern = ".results",
+             recursive = T,
+             full.names = T)
+
+results <- LDSCforRyten::Assimilate_H2_results(path_to_results = file_paths) %>% 
+  LDSCforRyten::Calculate_enrichment_SE_and_logP(., one_sided = "+") %>% 
+  tidyr::separate(annot_name, into = c("Disease_Group", "cell_type", "decile"),sep = ":") %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD", "DLB"))) %>% 
+  dplyr::select(Disease_Group, cell_type, decile, GWAS, everything())
+
+write_delim(results,
+            path = 
+              file.path(
+                path_to_results,
+                "ldsc/sldsc_celltype_deciles.txt"
+                ),
+            delim = "\t")
+
+```
+
+## Top decile
+Let's start by looking at the top decile of specificity.
+
+### Stringent
+This will take into account the number of GWASs and cell types tested.
+```{r}
+
+results <- read_delim(file = 
+                        file.path(
+                          path_to_results,
+                          "ldsc/sldsc_celltype_deciles.txt"
+                        ),
+                      delim = "\t") %>% 
+  dplyr::mutate(GWAS = str_replace(GWAS, "\\.hg38", ""),
+                GWAS = str_replace(GWAS, "2019", ""),
+                GWAS = str_replace_all(GWAS, "\\.", "_"))
+
+# Multiple correct co-efficient p-value within disease
+results %>% 
+  dplyr::filter(decile == 10,
+                !c(cell_type %in% c("Endo", "Per"))) %>%
+  dplyr::group_by(Disease_Group) %>%
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Enrichment > 0) %>% 
+  dplyr::select(Disease_Group, cell_type, decile, GWAS, Z_score_FDR, everything(), -contains("SE"), -contains("log")) %>%
+  dplyr::arrange(Z_score_FDR)  %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- With this multiple test correction, no significant enrichment of any GWAS heritability in the top 10% most cell-type specific genes.
+
+### Lenient
+This will take into account the number of cell types tested and uses only well-powered GWASs (AD, PD, PD AOO).
+```{r}
+results %>% 
+  # Filter for top decile, no endo/per cells and only well-powered GWASs
+  dplyr::filter(decile == 10, 
+                !c(cell_type %in% c("Endo", "Per")), 
+                GWAS %in% c("AD", "PD2018_AOO", "PD_meta5_ex23andMe")) %>%
+  dplyr::group_by(Disease_Group, GWAS) %>%
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Enrichment > 0,
+                Z_score_FDR < 0.05) %>% 
+  dplyr::select(Disease_Group, cell_type, decile, GWAS, Z_score_P, everything(), -contains("SE", ignore.case = F), -contains("log", ignore.case = F)) %>%
+  dplyr::arrange(Z_score_P) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- When we correct in this manner, we see:
+    - A significant enrichment of AD heritability in microglia from control, PD and PDD.
+    
+### Nominal results (unadjusted p < 0.05)
+- No multiple test correction. Only AD/PD/PD AOO used.
+```{r}
+results %>% 
+  # Filter for top decile, no endo/per cells and only well-powered GWASs
+  dplyr::filter(decile == 10, 
+                !c(cell_type %in% c("Endo", "Per")), 
+                GWAS %in% c("AD", "PD2018_AOO", "PD_meta5_ex23andMe"),
+                Enrichment > 0,
+                Z_score_P < 0.05) %>% 
+  dplyr::select(Disease_Group, cell_type, decile, GWAS, Z_score_P, everything(), -contains("SE", ignore.case = F), -contains("log", ignore.case = F)) %>%
+  dplyr::arrange(Z_score_P) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- Nominal enrichment of AD heritability in microglia from DLB.
+- Nominal enrichment of PD heritability in excitatory neurons from PDD/DLB.
+
+## Linear relationships between deciles
+Only those annotations where heritability proportions are above 0 for all deciles are included in this analysis. A negative prop_h2 indicates a model misspecification/GWAS underpowered.
+
+```{r, echo = F, eval = F}
+# Plot of linear models for all
+plot_list <-
+  vector(mode = "list",
+                    length = length(levels(results$Disease_Group)))
+
+for(i in 1:length(levels(results$Disease_Group))){
+
+  disease_group <- levels(results$Disease_Group)[i]
+
+  plot_list[[i]] <-
+    results %>%
+    dplyr::filter(Disease_Group == disease_group) %>%
+    ggplot(aes(x = as.numeric(decile), y = Enrichment)) +
+    geom_point() +
+    geom_errorbar(aes(ymin = Enrichment.Lower.SE, ymax = Enrichment.Upper.SE)) +
+    facet_grid(rows = vars(Disease_Group, GWAS), cols = vars(cell_type)) +
+    geom_smooth(method = "lm") +
+    theme_rhr
+
+}
+```
+
+### Stringent
+This will take into account the number of GWASs and cell types tested.
+```{r, fig.height = 10, fig.cap = "GWAS enrichment values in each specificity decile for each cell types. Only significant linear regressions shown; significant threshold set to 5% FDR across cell types and GWAS tested (within each disease group). Error bars indicate 95% confidence intervals. Blue line shows the linear regression slope fitted to the enrichment values. The grey boxing around the blue regression line depict the confidence intervals of the regression line."}
+
+# All deciles should have heritability proportions above 0; a negative prop_h2 indicates a model misspecification/GWAS underpowered
+# Keep only those annotations where this is fulfilled across all deciles
+filtered <- results %>% 
+  dplyr::filter(Prop._h2 > 0) %>% 
+  dplyr::group_by(Disease_Group, cell_type, GWAS) %>% 
+  dplyr::filter(n() == 10)
+
+# Test of linear regression
+lm_results <- filtered %>% 
+  dplyr::filter(!c(cell_type %in% c("Endo", "Per"))) %>%
+  dplyr::group_by(Disease_Group, cell_type, GWAS) %>% 
+  do(lm(Enrichment ~ as.numeric(decile), data = .) %>% 
+       broom::tidy())  %>% 
+  # Multiple correction
+  dplyr::group_by(Disease_Group) %>% 
+  dplyr::mutate(FDR = p.adjust(p.value, method = "fdr"))
+
+# Table of lm where decile is significant term
+lm_results %>% 
+  dplyr::filter(term != "(Intercept)" & FDR < 0.05) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+```{r, fig.height = 10, fig.cap = "GWAS enrichment values in each specificity decile for each cell types. Only significant linear regressions shown; significant threshold set to 5% FDR across cell types and GWAS tested (within each disease group). Error bars indicate 95% confidence intervals. Blue line shows the linear regression slope fitted to the enrichment values. The grey boxing around the blue regression line depict the confidence intervals of the regression line."}
+# Filtered for term == decile & FDR < 0.05
+# Plot significant lm models
+lm_results %>% 
+  dplyr::filter(term != "(Intercept)" & FDR < 0.05) %>% 
+  dplyr::inner_join(filtered) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD", "DLB"))) %>% 
+  ggplot(aes(x = as.numeric(decile), y = Enrichment)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Enrichment.Lower.SE, ymax = Enrichment.Upper.SE)) +
+  scale_x_continuous(breaks = seq(0,10,1)) +
+  labs(x = "Specificity decile") +
+  facet_wrap(vars(GWAS, cell_type, Disease_Group), ncol = 5) +
+  geom_smooth(method = "lm") + 
+  theme_rhr
+
+```
+
+### Lenient
+This will take into account the number of cell types tested and uses only well-powered GWASs (AD, PD, PD AOO).
+```{r}
+
+# Test of linear regression
+lm_results <- filtered %>% 
+  dplyr::filter(!c(cell_type %in% c("Endo", "Per")),
+                GWAS %in% c("AD", "PD2018_AOO", "PD_meta5_ex23andMe")) %>%
+  dplyr::group_by(Disease_Group, cell_type, GWAS) %>% 
+  do(lm(Enrichment ~ as.numeric(decile), data = .) %>% 
+       broom::tidy())  %>% 
+  # Multiple correction
+  dplyr::group_by(Disease_Group, GWAS) %>% 
+  dplyr::mutate(FDR = p.adjust(p.value, method = "fdr"))
+
+# Table of lm where decile is significant term
+lm_results %>% 
+  dplyr::filter(term != "(Intercept)",
+                FDR < 0.05) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+```{r, fig.height = 5, fig.cap = "GWAS enrichment values in each specificity decile for each cell types.  Only significant linear regressions shown; significant threshold set to 5% FDR across cell types (within each disease group). Error bars indicate 95% confidence intervals. Blue line shows the linear regression slope fitted to the enrichment values. The grey boxing around the blue regression line depict the confidence intervals of the regression line."}
+
+# Filtered for term == decile & FDR < 0.05
+# Plot significant lm models
+lm_results %>% 
+  dplyr::filter(term != "(Intercept)",
+                FDR < 0.05) %>% 
+  dplyr::inner_join(filtered) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(Disease_Group = fct_relevel(Disease_Group,
+                                            c("Control", "PD", "PDD", "DLB"))) %>% 
+  ggplot(aes(x = as.numeric(decile), y = Enrichment)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Enrichment.Lower.SE, ymax = Enrichment.Upper.SE)) +
+  scale_x_continuous(breaks = seq(0,10,1)) +
+  labs(x = "Specificity decile") +
+  facet_wrap(vars(GWAS, cell_type, Disease_Group), ncol = 5) +
+  geom_smooth(method = "lm") + 
+  theme_rhr
+```
+
+- Using the AD GWAS, this analysis highlights:
+    - The same result seen previously i.e. enrichment of AD heritability in microglia from PD, PDD and DLB cases.
+    - A positive linear relationship between cell-type deciles from PDD- and DLB-derived vascular cells and AD heritability.
+    - A negative linear relationship between cell-type deciles from (i) control-, PD and PDD-derived excitatory neurons; (ii) PD-, PDD- and DLB-derived inhibitory neurons; and (iii) DLB-derived OPCs.
+- Using the PD and PD AOO GWAS, this analysis highlights:
+    - A positive linear relationship between cell-type deciles from PD-derived microglia and PD heritability. 
+    - A negative linear relationship between cell-type deciles from DLB-derived inhibitory neurons and PD AOO GWAS.
+
+# Session info
+```{r}
+session_info()
+```
+

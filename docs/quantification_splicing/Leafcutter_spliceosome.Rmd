@@ -1,0 +1,270 @@
+---
+title: "Major/minor spliceosome analysis"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(ggforce) # For facet zoom
+library(GenomicRanges) # For granges manipulation
+library(stringr) # For string manipulation
+library(tidyverse) # For data manipulation
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+> Aim: determine whether the proportion of introns targeted by major/minor spliceosome differs between differentially spliced and non-differentially spliced introns across pairwise comparisons of disease to control
+
+# Background
+-  [Moyer at al.](https://academic.oup.com/nar/article/48/13/7066/5850313):
+    - Introns can be excised through two distinct pathways: the major (> 99% of introns in most organisms) or minor (< 1% in most organisms, with some organisms lacking minor class introns altogether) spliceosomes. 
+    - Minor class introns have consensus splice site and branch point sequences distinct from major class introns.
+    - The Intron Annotation and Orthology Database (IAOD) portal, contains the scores assigned to all Homo sapiens (GRCh38) introns that were recognisable either by the major spliceosome (U2-type introns) or by the minor spliceosome (U12-type introns).
+
+# Supplementary code {.tabset}
+
+## Loading IOAD data
+```{r load-ioad-data}
+
+U2 <- 
+  read_delim(file = "https://introndb.lerner.ccf.org/static/bed/GRCh38_U2.bed", 
+             delim = "\t", 
+             col_names = c("chr", "start", "stop", "intron_id", "score", "strand"),
+             col_types=
+               list(col_character(),
+                    col_double(),
+                    col_double(),
+                    col_character(),
+                    col_double(),
+                    col_character())) %>% 
+  dplyr::mutate(intron_type = "U2")
+
+print(str_c("Number of U2 introns: ", nrow(U2)))
+
+U12 <- 
+  read_delim(file = "https://introndb.lerner.ccf.org/static/bed/GRCh38_U12.bed", 
+             delim = "\t", 
+             col_names = c("chr", "start", "stop", "intron_id", "score", "strand"),
+             col_types = 
+               list(col_character(),
+                    col_double(),
+                    col_double(),
+                    col_character(),
+                    col_double(),
+                    col_character())) %>% 
+  dplyr::mutate(intron_type = "U12")
+
+print(str_c("Number of U12 introns: ", nrow(U2)))
+
+spliceosome_gr <- 
+  U2 %>% 
+  dplyr::bind_rows(U12) %>% 
+  makeGRangesFromDataFrame(
+    keep.extra.columns = TRUE, 
+    seqnames.field = "chr", 
+    start.field = "start", 
+    end.field = "stop", 
+    strand.field = "strand"
+    ) %>% 
+  GenomeInfoDb::keepSeqlevels(c(1:22, "X", "Y"), 
+                             pruning.mode = "coarse") 
+
+```
+
+## Loading differential splicing
+
+```{r load-ds-data}
+
+# List with 2 dataframes: (1) all successfully tested and annotated introns and (2) significant and annotated introns
+# Significance: FDR < 0.05, cluster contains >= 1 intron with |dPSI| >= 0.1
+intron_list <-
+  readRDS(here::here("docs", "figures", "intron_list.Rds"))
+
+# Add a column to dataframe with ds events signifying significance
+# Left join this to the dataframe of all successfully tested events
+# Replace NAs with FALSE
+intron_ds <- 
+  intron_list[[1]] %>% 
+  dplyr::left_join(
+    intron_list[[2]] %>% 
+                     dplyr::mutate(diff_spliced = TRUE)
+    ) %>% 
+  dplyr::mutate(
+    diff_spliced = case_when(is.na(diff_spliced) ~ FALSE,
+                            TRUE ~ diff_spliced)
+  )
+
+intron_ds_gr <- 
+  intron_ds %>% 
+  dplyr::select(-width) %>% 
+  makeGRangesFromDataFrame(
+    keep.extra.columns = TRUE, 
+    seqnames.field = "seqnames", 
+    start.field = "start", 
+    end.field = "end", 
+    strand.field = "strand"
+    )
+
+```
+
+## Finding overlaps
+```{r}
+
+# Looking only for exactly overlapping introns
+overlap <- 
+  GenomicRanges::findOverlaps(
+    intron_ds_gr, 
+    spliceosome_gr, 
+    type = "equal"
+    ) %>% 
+  as_tibble()
+
+overlap_df <-
+  intron_ds_gr %>% 
+  as_tibble() %>% 
+  dplyr::left_join(
+    intron_ds_gr %>% 
+      as_tibble() %>% 
+      dplyr::slice(overlap$queryHits) %>% 
+      dplyr::bind_cols(
+        spliceosome_gr %>% 
+          as_tibble() %>% 
+          dplyr::select(intron_id, score, intron_type) %>% 
+          dplyr::rename_with(
+            ~ stringr::str_c("ioad", .x, sep = "_")
+          ) %>% 
+          dplyr::slice(overlap$subjectHits)
+      )
+  )
+
+
+```
+
+
+# Results 
+
+## Number of distinct leafcutter introns that overlap U2/U12 introns {.tabset}
+
+### Text
+- Most introns from successfully tested intron clusters in each pairwise comparison were neither U2 nor U12 introns (Figure \@ref(fig:intron-type-count)). Worth bearing in mind that:
+    - IOAD GRCh38 was constructed using Ensembl v92, while we are using v97 (it does appear that we can create this file for v97, if we wanted to: https://github.com/Devlin-Moyer/cmdline_iaod) 
+    - Our leafcutter data contains introns that are not in annotation. 
+- Of those introns that were annotated, the majority were U2-type introns.
+
+### Figure
+```{r intron-type-count, fig.cap = "Number of introns within each intron type across pairwise comparisons."}
+
+overlap_df %>% 
+  dplyr::filter(!junc_cat %in% c("ambig_gene")) %>% 
+  dplyr::distinct(
+    comparison, 
+    seqnames, 
+    start, 
+    end, 
+    junc_cat, 
+    ioad_intron_type
+    ) %>% 
+  ggplot(
+    aes(x = ioad_intron_type)
+    ) +
+  geom_bar() +
+  geom_text(
+    stat='count', 
+    aes(label=..count..), 
+    vjust=-1
+    ) +
+  labs(
+    x = "Intron type",
+    y = "Number of introns"
+  ) +
+  facet_wrap(vars(comparison)) +
+  expand_limits(y = c(0, 100000)) +
+  theme_bw()
+
+```
+
+
+## Proportion of U2/U12-type introns across differentially spliced and non-differentially spliced introns {.tabset}
+
+### Text
+- Only two pairwise comparisons have differentially spliced introns that are considered a U12-type intron (Figure \@ref(fig:intron-type-prop)).
+- The pattern of how the proportion of U12/U2-type introns changes across differentially and non-differentially spliced introns is inconsistent across the two pairwise comparisons.
+    - Control vs DLB: proportion of U12-type introns appears to decrease in differentially spliced introns
+    - PD vs DLB: proportion of U12-type introns appears to increase in differentially spliced introns
+- Chi-squared test was applied to ask: *If there was no association between differential splicing of a cluster and intron type, what is the chance that random sampling would result in the association observed?*
+- Only PD vs DLB returned a p-value < 0.05, suggesting that the chances of observing this contingency table, and by extension the overlap between differential splicing and intron type, by random chance is small (in this pairwise comparison).
+
+### Figure
+```{r intron-type-prop, fig.height = 14, fig.cap = "Proportion of U2 and U12 introns across differentially spliced and non-differentially spliced introns from each pairwise comparison. For each figure, the panel on the left is a zoomed view of the panel on the right."}
+
+comparisons <- overlap_df$comparison %>% unique()
+
+fig_list <- 
+  vector(mode = "list",
+         length = length(comparisons))
+
+for(i in 1:length(comparisons)){
+  
+  fig_list[[i]] <- 
+    overlap_df %>% 
+    dplyr::filter(
+      !is.na(ioad_intron_type),
+      comparison == comparisons[i]
+    ) %>% 
+    ggplot(
+      aes(
+        x = diff_spliced,
+        fill = ioad_intron_type
+      )
+    ) +
+    geom_bar(position = "fill", colour = "black") +
+    labs(
+      x = "Differentially spliced?", 
+      y = "Proportion of introns annotated\nto each intron type (%)", 
+      title = comparisons[i] %>% 
+        stringr::str_replace_all("_", " ")
+    ) +
+    scale_y_continuous(labels = scales::percent) +
+    ggforce::facet_zoom(ylim = c(0.99,1), zoom.size = 1) +
+    theme_bw()
+  
+}
+
+ggpubr::ggarrange(
+  plotlist = fig_list, 
+  ncol = 1,
+  common.legend = T
+)
+
+```
+### Chi-squared test
+```{r chi-sq-test}
+overlap_df %>% 
+  dplyr::filter(!is.na(ioad_intron_type),
+                comparison %in% c("Control_vs_DLB", "PD_vs_DLB")) %>% 
+  dplyr::select(comparison, diff_spliced, ioad_intron_type) %>% 
+  dplyr::group_by(comparison) %>% 
+  summarise(
+    p.value= chisq.test(diff_spliced, ioad_intron_type)$p.value, 
+    method = chisq.test(diff_spliced, ioad_intron_type)$method
+    )
+```
+
+
+# Session info
+```{r}
+sessionInfo()
+```
+

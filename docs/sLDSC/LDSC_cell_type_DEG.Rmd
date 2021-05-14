@@ -1,0 +1,342 @@
+---
+title: "sLDSC: cell-type differential expression"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+
+library(corrplot)
+library(devtools)
+library(DT)
+library(ggplot2)
+library(ggdendro)
+library(ggpubr)
+library(GeneOverlap)
+library(LDSCforRyten)
+library(tidyverse)
+library(readxl)
+library(UpSetR)
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+
+theme_rhr_no_axis_text <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        strip.text.y = element_text(size = 8, angle = 0),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, message= F, warning = F)
+
+```
+
+> Aim: use stratified LDSC to test whether heritability of various diseases (including AD and PD) enriches within genes found differentially expressed within a cell type across disease groups.
+
+# File paths for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+source(here::here("R", "EWCE_related_functions.R"))
+source(here::here("R", "upsetR_common.R"))
+
+```
+
+# Background
+
+s-LDSC is a method that allows you to determine the relative contribution of an annotation to disease heritability. We use the co-efficient p-value as our read-out for significance, as it tells us whether our annotation is significantly contributing to disease heritability after we have accounted for underlying genetic architecture (as represented by a 53-annotation baseline model, which tags coding regions, enhancer regions, histones, promoters, etc.).
+
+# Running s-LDSC
+
+## Creating gene lists
+- We will be creating these from list of differentially expressed genes found when testing the same cell type across different disease groups.
+**Note on naming convention**: results provided by Imperial have the name `comparison[2]_vs_comparison[1]`, where `comparison[1]` is the baseline/reference value and `comparison[2]` is in reference to the baseline value. That is, directionality of effect is the same as how we (at UCL) have been performing our analyses, albeit with a different naming convention. To reflect our own naming convention, I swapped theirs.
+
+### How many differentially expressed genes found?
+- Following filters applied:
+    - FDR < 0.05
+    - logFC > log2(1.5)
+```{r, fig.height = 7, fig.cap= "Number of differentially expressed genes within each cell type across comparisons when a filter of FDR < 0.05 and logFC > log2(1.5) is applied."}
+
+# Thresholds
+fc_threshold <- log2(1.5)
+fdr_threshold <- 0.05
+
+# File paths
+DEG_files <- 
+  list.files(
+    file.path(
+      path_to_results,
+      "snRNA/differential_gene_expr/2021_Mar"), 
+             pattern = "_Allfiles2",
+             full.names = T
+    )
+
+# Load across files
+DEG_list <- setNames(DEG_files %>%
+                       lapply(., function(file){
+                         
+                         file %>% 
+                           readRDS() %>%
+                           lapply(., function(df){
+                             df %>%
+                               dplyr::rename(gene = primerid)
+
+                         })
+                         
+                       }),
+                     DEG_files %>% 
+                       str_replace(".*/", "") %>% 
+                       str_replace("_Allfiles2.*", ""))
+
+# Create dataframe 
+DEG_df <- 
+  DEG_list %>% 
+  lapply(., function(DEG){
+    
+    DEG %>% 
+      qdapTools::list_df2df(col1 = "cell_type")
+    
+  }) %>% 
+  qdapTools::list_df2df(col1 = "comparison") %>% 
+  # Change naming convention to reflect our convention
+  tidyr::separate(comparison, into = c("comparison_2", "comparison_1"), sep = "_") %>% 
+  dplyr::mutate(comparison_1 = str_replace(comparison_1, pattern = "C", "Control"),
+                comparison = str_c(comparison_1, ".vs.", comparison_2),
+                # Add direction of effect
+                direction_of_effect = ifelse(coef > 0, "up", "down"),
+                cell_type = 
+                  case_when(cell_type == "Astrocytes" ~ "Astro",
+                            cell_type == "Oligodendrocytes" ~ "Oligo",
+                            TRUE ~ cell_type)) %>% 
+  dplyr::select(comparison, everything(), -comparison_1, -comparison_2) %>% 
+  dplyr::filter(fdr < fdr_threshold, abs(coef) > fc_threshold) %>% 
+  as_tibble()
+
+# Plot number of differentially expressed genes
+DEG_df %>% 
+  dplyr::mutate(direction_of_effect = ifelse(coef > 0, "up", "down")) %>% 
+  dplyr::filter(fdr < fdr_threshold, abs(coef) > fc_threshold) %>% 
+  dplyr::group_by(comparison, direction_of_effect, cell_type) %>% 
+  dplyr::summarise(n = n()) %>% 
+  ggplot(aes(x = cell_type, y = n)) +
+  geom_col(position = position_dodge()) +
+  labs(x = "Cell type", y = "Number of DEG (FDR < 0.05 & logFC > log2(1.5))") +
+  facet_wrap(vars(comparison, direction_of_effect)) + 
+  theme_rhr
+
+```
+
+- Looking at the plot above, the number of genes for some lists is quite low for s-LDSC (and as we know the power of sLDSC to detect heritability enrichments increases with annotation size). However, this is what has been run for pathway analyses, so for now stick with this cut-off. Will only run joint lists.
+
+## Overlap between DEG lists
+- When running our lists, it is worth knowing just how much our lists overlap. 
+
+```{r, fig.height = 14, out.width = '100%', warning = F, fig.cap= "Overlap between cell-type DEG lists from each comparison (excluding any lists with less than 20 genes). In the matrix (lower half of panel), rows represent the differntially expressed genes for each cell type in each comparison and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across cell-type DEG lists. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each cell-type DEG list is shown to the left of the matrix. Only the top 15 intersections are displayed."}
+
+
+# Remove cell type/comparisons with less than 20 DEG
+gene_list <- 
+  DEG_df %>% 
+  dplyr::filter(fdr < fdr_threshold, abs(coef) > fc_threshold) %>% 
+  dplyr::mutate(cell_type_comparison = str_c(cell_type, ":", comparison)) %>% 
+  dplyr::group_by(cell_type_comparison) %>% 
+  dplyr::filter(n() >= 20) %>% 
+  dplyr::ungroup() %>% 
+  group_split(cell_type, comparison)
+
+names(gene_list) <- gene_list %>% 
+  lapply(., function(df){
+    df %>% .[["cell_type_comparison"]] %>% unique()
+  })
+
+upset(fromList(gene_list %>% 
+  lapply(., function(df){
+    df %>% .[["gene"]]
+  })), 
+  sets = names(gene_list), 
+  keep.order = TRUE, 
+  nintersects = 15,
+  order.by = "freq")
+
+```
+
+- Number of overlaps is limited and typically appear within the same cell type.
+
+## Creating LDSC annotations and running LDSC
+- Ran lists of DE genes with:
+    - FDR < 0.05 & |logFC| > log2(1.5)
+    - A count of >= 20 DE genes within a cell-type across comparison (irrespective of up/down)
+- In addition to creating annotations with SNPs found within start and end site for transcription, we also include SNPs found within 100kb upstream and downstream of these sites (as in: https://www.ncbi.nlm.nih.gov/pubmed/29632380)
+- As we are looking for critical cell types/tissues, then according to [developer guidelines](https://data.broadinstitute.org/alkesgroup/LDSCORE/readme_baseline_versions) on baseline model  we should use baseline LD v1.2 (53 annotations). 
+- This was run via nohup using the following script: [LDSC_cell_type_DEG.R](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/LDSC_cell_type_DEG.R)
+
+```{bash, eval = F}
+
+cd /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/ldsc_annotations/celltype.DEG
+
+nohup Rscript \
+/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/LDSC_cell_type_DEG.R \
+&>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/LDSC_cell_type_DEG.log&
+
+```
+
+# Results
+- Multiple correction was performed within a comparison and GWAS (i.e. accounting only for the number of cell types).
+- As annotations were split into those that accounted for direction of effect (i.e. split into up/downregulated genes) and those that did not, these groups were treated separately.
+```{r, eval = F}
+
+file_paths <- list.files(path = 
+                           file.path(
+                             path_to_raw_data,
+                             "ldsc_annotations/celltype.DEG/"
+                           ),
+                    pattern = ".results",
+                    recursive = T,
+                    full.names = T)
+
+results <- LDSCforRyten::Assimilate_H2_results(path_to_results = file_paths) %>% 
+  LDSCforRyten::Calculate_enrichment_SE_and_logP(., one_sided = "+") %>% 
+  tidyr::separate(annot_name, into = c("comparison", "cell_type", "direction_of_effect"),sep = ":") %>% 
+  dplyr::mutate(comparison = str_replace_all(comparison, "\\.", "_") %>% 
+                  fct_relevel(.,
+                              c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB"))) %>% 
+  dplyr::select(GWAS, comparison, cell_type, direction_of_effect, everything())
+
+write_delim(results, 
+            path = file.path(path_to_results, "ldsc/sldsc_celltype_DEG.txt"),
+            delim = "\t")
+
+```
+
+```{r}
+
+results <- read_delim(file = file.path(path_to_results, "ldsc/sldsc_celltype_DEG.txt"),
+                      delim = "\t")
+
+print("Results for annotations with direction of effect")
+results %>% 
+  dplyr::filter(!is.na(direction_of_effect)) %>% 
+  dplyr::group_by(GWAS, comparison) %>% 
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Z_score_FDR < 0.05) %>% 
+  dplyr::select(-contains("SE"), -contains("log")) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+print("Results for joint lists")
+results %>% 
+  dplyr::filter(is.na(direction_of_effect)) %>% 
+  dplyr::group_by(GWAS, comparison) %>% 
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Z_score_FDR < 0.05) %>% 
+  dplyr::select(-contains("SE"), -contains("log")) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- While it would appear that we have significant results, it is important to note that in some cases the proportion of heritability accounted for by the annotation is negative! This can be a result of a few things:
+    1. Sampling noise.
+    2. It may indicate model misspecification. As mentioned by the developers in their [FAQ](https://github.com/bulik/ldsc/wiki/FAQ), "fitting well-specified models of partitioned heritability is hard".
+    3. Can also be an indication that the GWAS and/or the annotation is too small.
+- If we filter for negative Prop._h2 and co-efficient z-scores that are non-negative, we see that these occur only in the PD baseline/survival GWASs (which we know have very small sample sizes), thus option 3 is most likely.
+
+```{r}
+
+results %>% 
+  dplyr::filter(Prop._h2 + Prop._h2_std_error < 0, `Coefficient_z-score` > 0) %>% 
+  .[["GWAS"]] %>% 
+  unique()
+
+```
+
+- If we remove those baseline/survival GWASs we are left with the following results:
+```{r}
+
+print("Results for annotations with direction of effect")
+results %>% 
+  dplyr::filter(!is.na(direction_of_effect),
+                !str_detect(GWAS, "base"),
+                !str_detect(GWAS, "surv")) %>% 
+  dplyr::group_by(GWAS, comparison) %>% 
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Z_score_FDR < 0.05) %>% 
+  dplyr::select(-contains("SE"), -contains("log")) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+print("Results for joint lists")
+results %>% 
+ dplyr::filter(is.na(direction_of_effect),
+                !str_detect(GWAS, "base"),
+                !str_detect(GWAS, "surv")) %>% 
+  dplyr::group_by(GWAS, comparison) %>% 
+  dplyr::mutate(Z_score_FDR = p.adjust(Z_score_P, method = "fdr")) %>% 
+  dplyr::filter(Z_score_FDR < 0.05) %>% 
+  dplyr::select(-contains("SE"), -contains("log")) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+## Nominal results
+```{r}
+
+print("Results for joint lists")
+results %>% 
+ dplyr::filter(is.na(direction_of_effect),
+                !str_detect(GWAS, "base"),
+                !str_detect(GWAS, "surv")) %>% 
+  dplyr::group_by(GWAS, comparison) %>% 
+  dplyr::filter(Z_score_P < 0.05) %>% 
+  dplyr::select(-contains("SE"), -contains("log")) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+# Conclusions
+- Results as based on FDR < 0.05:
+    - Enrichment of PD age of onset heritability in:
+        - Genes differentially expressed in Control_vs_PD astrocytes and OPCS.
+        - Genes upregulated in Control_vs_PD OPCs.
+    - Enrichment of LBD heritability in genes differentially expressed in Control_vs_DLB inhibitory neurons and PDD_vs_DLB OPCs.
+    - Enrichment of PD heritability in genes upregulated in PD_vs_DLB excitatory neurons.
+
+# Session info
+```{r}
+session_info()
+```
+

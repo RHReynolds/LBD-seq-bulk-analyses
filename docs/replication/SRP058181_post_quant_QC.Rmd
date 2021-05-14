@@ -1,0 +1,441 @@
+---
+title: "SRP058181: Post-quantificationQC"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+```{r setup, include=FALSE}
+
+library(DESeq2)
+library(devtools)
+library(DT)
+library(ensembldb)
+library(gplots)
+library(ggrepel)
+library(ggpubr)
+library(pheatmap)
+library(tidyverse)
+library(tximport)
+library(stringr)
+library(pcaExplorer)
+library(RColorBrewer)
+library(readxl)
+library(rjson)
+library(rtracklayer)
+library(viridis)
+devtools::load_all(path = "/home/rreynolds/packages/EWCE/")
+devtools::load_all(path = "/home/rreynolds/projects/MarkerGenes/")
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+> Aim: perform post-quantification quality control checks.
+
+# File paths/files for workflow
+
+```{r file-paths}
+
+# File paths
+source(here::here("R", "file_paths.R"))
+
+load(file.path(path_to_recount, "counts/rse_gene.Rdata"))
+gtf <- readGFF(filepath = path_to_ref_gtf)
+
+sample_info <- 
+  read_excel(
+    path = 
+      file.path(
+        path_to_raw_data,
+        "sample_details/SRP058181_sample_metadata.xlsx"
+      )
+  ) %>% 
+  dplyr::na_if(.,"N/A") %>% 
+  dplyr::select(-Proteomics, -Proteomics_SV1, -Proteomics_SV2, -Proteomics_SV3, -Microarray_study_ID) %>% 
+  dplyr::mutate(
+    sample_id = `RNA-Seq_Samples`,
+    Braak_score = Braak_score %>% 
+      str_replace_all(c("IV" = "4",
+                        "II-III" = "3",
+                        "I-II" = "2",
+                        "III" = "3",
+                        "II" = "2",
+                        "I" = "1")) %>% 
+      as.integer(),
+    Disease_Group = ifelse(Condition == "Control", "Control",
+                           ifelse(Condition == "PD" & Dementia == "no", "PD",
+                                  ifelse(Condition == "PD" & Dementia == "yes", "PDD", NA))),
+    Disease_Group = replace_na(Disease_Group, "PD")
+  ) %>% 
+  dplyr::inner_join(
+    colData(rse_gene) %>% 
+      as_tibble() %>% 
+      dplyr::select(run, title, mapped_read_count) %>% 
+      dplyr::mutate(recount_id = run, 
+                    title = str_replace(title, " \\[.*", "")) %>% 
+      dplyr::select(-run), 
+    by = c("sample_id" = "title")
+  ) %>% 
+  dplyr::full_join(
+    read_delim(
+      file.path(
+        path_to_results,
+        "deconvolution/scaden/SRP058181/scaden_predictions_cells.1000:samples.1000.txt"
+      ), 
+      delim = "\t"
+    )  %>% 
+      dplyr::rename(recount_id = X1) %>% 
+      dplyr::rename_at(vars(-recount_id),function(x) paste0(x,"_proportion"))) %>% 
+  dplyr::select(sample_id, recount_id, Disease_Group, everything(), -Condition, -`RNA-Seq_Samples`) %>% 
+  dplyr::arrange(recount_id)
+
+```
+
+# Background
+- Data originally downloaded from recount, SRP058181.
+- Used data to perform a number of QC checks, including:
+    1. Checked library sizes and count distributions across samples.
+    2. Sex checks.
+    3. How samples clustered using uncorrected gene count data.
+    
+# Creating a DESeqDataSet
+- Recount2 provide a *SummarisedExperiment*. DESeq does have a function `DESeqDataSet` to convert such *SummarisedExperiment* objects. However, metadata in the summarised experiment does not include columns for sample characteristics including PMI, RIN, etc.
+- Therefore, chose to re-generate the DESeqDataSet from the count matrix in the *SummarisedExperiment*.
+
+```{r DDS, eval = F}
+
+# Important that rows in the dataframe, 'sample_info', are in the same order as the columns in the count matrix, 'countData'.
+countdata <- assay(rse_gene)
+countdata <- countdata[ ,sort(colnames(countdata))] # Sorted alphanumerically
+
+coldata <- 
+  sample_info %>% 
+  dplyr::select(sample_id, recount_id, Disease_Group, everything()) %>% 
+  inner_join(colData(rse_gene) %>% 
+                      as_tibble() %>% 
+                      dplyr::mutate(recount_id = run, 
+                                    title = str_replace(title, " \\[.*", "")) %>% 
+                      dplyr::select(-run, -title, -characteristics, -mapped_read_count), 
+                    by = c("recount_id" = "recount_id")) %>% 
+  arrange(recount_id) # Sorted alphanumerically to match sorting in countdata
+
+dds <- DESeqDataSetFromMatrix(countData = countdata,
+                              colData = coldata,
+                              design = ~ Disease_Group)
+
+saveRDS(
+  dds, 
+  file = 
+    file.path(
+      path_to_results,
+      "SRP058181/gene_level_quant/SRP058181_DESeqDataSet.Rds"
+      )
+  )
+
+```
+
+    
+# Library size and count distribution
+```{r library-size, fig.height = 6, fig.cap="Plot of total library size, as determined by summing unnormalised gene counts across samples. Samples are coloured by RIN, with the midpoint of the colour scale (white) indicating the median RIN across all samples."}
+
+dds <- readRDS(
+  file.path(
+    path_to_results,
+    "SRP058181/gene_level_quant/SRP058181_DESeqDataSet.Rds"
+  )
+)
+
+# Plot library size using sum of all gene counts within a sample
+ggplot(data = colData(dds) %>% 
+         as.data.frame(), 
+       aes(x = MarkerGenes::reorder_within(x = recount_id,
+                                           by = mapped_read_count,
+                                           within = recount_id,
+                                           fun = median,
+                                           desc = TRUE), 
+           y = mapped_read_count,
+           fill = RIN)) +
+  geom_col() +
+  MarkerGenes::scale_x_reordered() + 
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = median(sample_info$RIN)) +
+  labs(x = "Sample ID", y = "Recount2: Mapped read count") +
+  theme_rhr
+
+```
+- Average library size is: `r round(colData(dds) %>% as.data.frame() %>% .[["mapped_read_count"]] %>% mean()/1000000, digits = 2)` million reads. This is smaller than our average of ~ 155 million reads per sample.
+- Average read length: `r colData(dds) %>% as.data.frame() %>% .[["avg_read_length"]] %>% mean()`
+- As count data is not normally distributed,`vst` function from `DESeq2` used to apply a *variance-stabilising transformation*. This transformation is roughly similar to putting the data on the log2 scale, while also dealing with the sampling variability of low counts. 
+- The `vst` function also corrects for library size.
+
+```{r vst, eval=T, echo=T}
+
+# Get log2 counts
+vsd <- vst(object = dds,
+           blind = TRUE)
+
+```
+
+```{r median-count, fig.height = 8, fig.cap="Plot of log2 counts per million across samples. Samples are coloured by RIN, with the midpoint of the colour scale (white) indicating the median RIN across all samples."}
+
+# Check distributions of samples using boxplots
+ggplot(data = vsd %>% 
+         assay() %>% 
+         as_tibble() %>% 
+         dplyr::mutate(gene_id = rownames(assay(vsd))) %>% 
+         gather(key = sample_id, value = log2_counts_per_million, -gene_id) %>% 
+         inner_join(sample_info, by = c("sample_id" = "recount_id")), 
+       aes(x = MarkerGenes::reorder_within(x = sample_id,
+                                           by = log2_counts_per_million,
+                                           within = sample_id,
+                                           fun = median,
+                                           desc = FALSE), 
+           y = log2_counts_per_million, fill = RIN)) + 
+  geom_boxplot() + 
+  MarkerGenes::scale_x_reordered() +
+  geom_hline(yintercept = median(assay(vsd)), size = 0.75, linetype = "dashed") + 
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = median(sample_info$RIN)) +
+  labs(x = "Sample ID", y = "Log2 counts per million") +
+  theme_rhr
+
+
+```
+- There does not appear to be a relationship between median log2CPM and RIN. 
+
+# Sex checks
+- Following quantification, did a basic sex check. Looked at genes known to be exclusively expressed in female/males e.g. *XIST* (X-chromosome expressed and used for X-inactivation) and *DDX3Y* (Y chromosome). 
+- Based on cohort description would not expect any samples to have notable *XIST* expression.
+- **NOTE:** Sample SRR2015746 (C0061) has expression of both XIST (~60,000 counts) and DDX3Y (~800,000 counts) - be sure to remove this sample from further analysis!
+
+```{r sex-check, fig.height = 6, fig.cap="Plot of read counts across *DDX3Y* (Y-chromosome expressed) and *XIST* (required for X-chromosome inactivation). Samples are coloured by their assigned sex, as provided in the initial sample information from Imperial. Expression patterns of the female/male-specific genes match the assigned sexes."}
+
+# XIST and DDX3Y ensembl IDs
+sex_genes <- gtf %>% 
+  dplyr::filter(gene_name %in% c("XIST", "DDX3Y")) %>% 
+  distinct(gene_name, .keep_all = TRUE) %>% 
+  dplyr::select(gene_id, gene_name)
+
+sex_gene_expr <- sex_genes %>% 
+  inner_join(dds %>% 
+               assay() %>% # Access count data
+               as_tibble() %>% 
+               dplyr::mutate(gene_id = dds %>% 
+                               assay() %>% 
+                               rownames() %>% 
+                               str_replace("\\..*", "")) %>% 
+               dplyr::select(gene_id, everything()), 
+             by = c("gene_id" = "gene_id")) %>% 
+  gather(key = sample_id, value = counts, -gene_id, -gene_name) %>% 
+  inner_join(sample_info, by = c("sample_id" = "recount_id"))
+
+ggplot(sex_gene_expr, aes(x = sample_id, y = counts, fill = Sex)) +
+  geom_col() + 
+  facet_grid(gene_name~., scales = "free_y") +
+  labs(x = "Sample ID", y = "Counts") +
+  scale_fill_manual(values = c("#00BFC4")) +
+  theme_rhr
+
+```
+
+
+# Heatmap of sample-to-sample distances
+- Transformed count matrix can be transposed (i.e. samples as rows and genes as columns), and the distance between samples can be computed and plotted in a heatmap. This can then provide an overview of the similarities/dissimilarities between samples.
+```{r sample-clustering, fig.height = 8, fig.cap="Heatmap of sample-to-sample distances calculated using vst-transformed count matrix. Samples labelled by name, disease group and sex."}
+
+sampleDists <- vsd %>% 
+  assay() %>% 
+  t() %>% # Transpose transformed count matrix, such that samples now rows.
+  dist() # Compute distances between rows of the matrix i.e. sample-to-sample distance
+  
+sampleDistMatrix <- sampleDists %>% 
+  as.matrix() # Convert to matrix
+
+rownames(sampleDistMatrix) <- str_c(vsd$Disease_Group)
+colnames(sampleDistMatrix) <- NULL
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col= viridis(n = 20))
+
+```
+- Based on heatmap of sample-to-sample distances, some samples do appear to be grouping by disease, although it is not entirely clear cut.
+
+# PCA
+
+## Scree plot
+A scree plot shows the fraction of total variance explained by each PC.
+```{r PCA-proportion-explained, fig.height=8, fig.cap= "Plot of (a) the proportion of variance explained by each PC and (b) the cumulative proportion of variance explained with the addition of each PC."}
+
+pca_vsd <- prcomp(t(assay(vsd)))
+
+ggarrange(pcascree(pca_vsd, type = "pev"),
+          pcascree(pca_vsd, type = "cev"),
+          nrow = 2,
+          labels = c("a", "b"))
+
+
+```
+
+## Correlation of PC axes with sample covariates
+- Easiest way to determine associations between PC and co-variates is to perform a correlation analysis between PCs and co-variates. 
+- Figure and table below show that there is a significant association between 3 covariates (RIN, age at death, disease group) and PC1, in addition to age at death and PC73. 
+- Table shows FDR-corrected p-values of association.
+- Based on the below, will be important to correct downstream analyses for:
+    - RIN
+    - Age at death
+    - Several cell-type proportions
+
+```{r}
+
+PC_correlates <- correlatePCs(pcaobj = pca_vsd, 
+                              coldata = colData(vsd) %>% 
+                                as.data.frame() %>% 
+                                dplyr::select(Disease_Group, Age_at_death, PMI, RIN, Sex, Motor_onset, Disease_duration, Braak_score,mapped_read_count, contains("proportion")), 
+                              pcs = 1:73)
+
+# Some proportions so highly correlated that p-value = 0
+# Replace these 0s with p-value lower than minimum of 1.6E-9
+PC_correlates_FDR <- PC_correlates %>% 
+  as_tibble() %>% 
+  dplyr::mutate(PC = str_c("PC_", c(1:73))) %>% 
+  dplyr::select(-Sex, -Motor_onset, -Disease_duration) %>% 
+  tidyr::gather(key = covariate, value = p, -PC) %>% 
+  dplyr::mutate(p = case_when(p == 0 ~ 1 * 10^-12,
+                              TRUE ~ p),
+                FDR = p.adjust(p, method = "fdr"))
+
+PC_correlates_FDR %>% 
+  dplyr::filter(FDR < 0.05) %>% 
+  dplyr::arrange(FDR) 
+
+```
+
+```{r PCA-correlations-with-covariates, fig.cap="Heatmap of significance of (cor)relations between PCA scores (only showing first 40) and sample covariates. Significance computed using Kruskal-Wallis for categorical variables and the cor.test based on Spearman's correlation for continuous variables. P-values were FDR-corrected."}
+
+PC_correlates_FDR_mat <- PC_correlates_FDR %>% 
+  dplyr::select(-p) %>% 
+  tidyr::spread(key = covariate, value = FDR) %>% 
+  dplyr::mutate(PC_number = str_replace(PC, "PC_", "") %>% 
+                  as.numeric()) %>% 
+  dplyr::arrange(PC_number) %>% 
+  dplyr::select(-PC_number, -PC) %>% 
+  as.matrix()
+
+rownames(PC_correlates_FDR_mat) <- PC_correlates_FDR %>% .[["PC"]] %>% unique()
+
+heatmap.2(x = -log10(PC_correlates_FDR_mat[1:40,]) %>% t(), 
+          Colv = NA, 
+          Rowv = NA,
+          dendrogram = "none",
+          col = viridis(n = 10),
+          trace = "none",
+          density.info = "none", 
+          key = TRUE, 
+          key.xlab = "-log10(FDR-corrected p-value)", 
+          cexRow = 0.65, cexCol = 0.65)
+
+```
+
+## Clustering by PC1 and PC2
+- Can attempt to "cluster" samples using the PCA plot. As might be expected, this is sensitive to the number of top genes (as selected by highest row variance) used for the analysis.
+- The general trend confirms the heatmap above i.e. samples cluster by RIN and age at death.
+
+```{r PCA-RIN, fig.cap="PCA plots using the top a) 100, b) 500, c) 5000 or d) 10000 variable genes (selected by highest row variance). Points are coloured by RIN, and their shape corresponds to disease group."}
+
+plot_PCA <- function(data, intgroup, ntop){
+  
+  pcaData <- plotPCA(data, intgroup= intgroup, 
+                     ntop = ntop, # number of top genes to use for principal components [default: 500, but when used PC1 only accounted for 10%]
+                     returnData = TRUE)
+  
+  pcVar <- round(100 * attr(pcaData, "percentVar"))
+  
+  plot <- ggplot(pcaData,
+              aes(x = PC1,
+                  y = PC2,
+                  colour = RIN,
+                  shape = Disease_Group,
+                  label = name)) + 
+    geom_point(size = 2) +
+    labs(x = str_c("PC1: ", pcVar[1], "%"),
+         y = str_c("PC2: ", pcVar[2], "%")) +
+    theme_rhr
+  
+  list <- list(plot, pcaData)
+  names(list) <- c("plot", "pcaData")
+  
+  return(list)
+  
+}
+
+pca <- lapply(c(100, 500, 5000, 10000), plot_PCA, data = vsd, intgroup = c("RIN", "Disease_Group"))
+names(pca) <- c("top_100", "top_500", "top_5000", "top_10000")
+
+ggarrange(plotlist = list(pca[[1]]$plot, pca[[2]]$plot, pca[[3]]$plot, pca[[4]]$plot), 
+          common.legend = TRUE, 
+          legend = "right",
+          labels = c("a", "b", "c", "d"))
+
+```
+
+```{r PCA, fig.cap="PCA plots using the top a) 100, b) 500, c) 5000 or d) 10000 variable genes (selected by highest row variance). Points are coloured by age at death, and their shape corresponds to disease group."}
+
+plot_PCA <- function(data, intgroup, ntop){
+  
+  pcaData <- plotPCA(data, intgroup= intgroup, 
+                     ntop = ntop, # number of top genes to use for principal components [default: 500, but when used PC1 only accounted for 10%]
+                     returnData = TRUE)
+  
+  pcVar <- round(100 * attr(pcaData, "percentVar"))
+  
+  plot <- ggplot(pcaData,
+              aes(x = PC1,
+                  y = PC2,
+                  colour = Age_at_death,
+                  shape = Disease_Group,
+                  label = name)) + 
+    geom_point(size = 2) +
+    labs(x = str_c("PC1: ", pcVar[1], "%"),
+         y = str_c("PC2: ", pcVar[2], "%")) +
+    theme_rhr
+  
+  list <- list(plot, pcaData)
+  names(list) <- c("plot", "pcaData")
+  
+  return(list)
+  
+}
+
+pca <- lapply(c(100, 500, 5000, 10000), plot_PCA, data = vsd, intgroup = c("Age_at_death", "Disease_Group"))
+names(pca) <- c("top_100", "top_500", "top_5000", "top_10000")
+
+ggarrange(plotlist = list(pca[[1]]$plot, pca[[2]]$plot, pca[[3]]$plot, pca[[4]]$plot), 
+          common.legend = TRUE, 
+          legend = "right",
+          labels = c("a", "b", "c", "d"))
+
+```
+
+# Session Info
+```{r}
+sessionInfo()
+```
+

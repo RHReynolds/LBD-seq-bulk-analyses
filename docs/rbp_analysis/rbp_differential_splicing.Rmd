@@ -1,0 +1,845 @@
+---
+title: "RBP analysis for differential splicing"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(doParallel)
+library(foreach)
+library(tidyverse)
+library(qdapTools)
+library(viridis)
+library(UpSetR)
+devtools::load_all("/home/rreynolds/packages/EWCE")
+devtools::load_all("/home/rreynolds/projects/MarkerGenes/")
+
+# Theme
+theme_rhr <-  
+  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "right",
+        strip.text = element_text(size = 7),
+        axis.text.x = element_text(size = 7, angle = 45, hjust = 1, vjust = 1),
+        axis.text.y = element_text(size = 7),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+> Aim: to determine whether there is differential enrichment of splicing-related RBPs in differentially spliced clusters across comparisons. 
+
+# File paths/files for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+source(here::here("R", "rbp_functions.R"))
+source(here::here("R", "get_regions.R"))
+
+fct_disease <- c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB", "PD_vs_PDD", "PD_vs_DLB", "PDD_vs_DLB")
+
+```
+
+# Background
+- Check out [Nostrand, 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-01982-9#) paper.
+
+# Overview
+1. Create position weight matrix (PWM) for RNA-binding proteins (RBPs) of interest.
+2. Create .fasta files for analyses
+3. Run three analyses:
+    a. FIMO scan of spliced sequences to determine density of RNA-binding protein motifs. Can use this to determine whether there is a noticeable difference between using:
+        - Introns alone
+        - Introns +/- 50 bp
+        - Introns with adjoining exons (in those cases where adjoining exons can be assigned)
+        - Proximal intronic regions - as defined in [Nostrand et al.](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-01982-9#Sec17), this includes the 50bp of the flanking exon/region and 500 bp into the intron.
+        - 5' proximal intronic regions
+        - 3' proximal intronic regions
+    b. Depending on results from part (a), split intron definitions into differentially spliced and non-differentially spliced and run an enrichment analysis of motifs in differentially spliced clusters vs. non-differentially spliced clusters (in this case using AME).
+
+## Tools used
+- Documentation/tools provided by [Sid Sethi](https://github.com/sid-sethi/rbp_binding_analysis). Includes following functions/scripts:
+    - `attract_db_filter.R` - Filtering of RBPs from ATTRACH database to include only RBPs that are: derived from humans, have a motif length > 6 and the highest quality score (1). The latter two filters were introduced by Sid to reduce redundancy in RBP motifs (many RBPs have highly similar motifs) i.e. longest motif selected for each RBP. I have modified this code slightly from original such that:
+        - Filtering for GO term permitted
+        - Turned into function that can be sourced within R
+    - `attract_pwm_human.pl` - perl script to filter PWM, such that it only contains motif for RBPs of interest. Slightly modified such that the metadata file that is used to filter pwm.txt can be named whatever the user wants (as opposed to `ATtRACT_db_human.txt`).  
+    - `rbp_fimo_summary.R` - script to summarise the results of a FIMO analysis. I modified this slightly from the original such that it could be sourced as a function from within R.
+- Part of MEME Suite:
+    - FIMO ([Find Individual Motif Occurrences](https://academic.oup.com/bioinformatics/article/27/7/1017/232614))
+    - AME ([Analysis of Motif Enrichment](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-11-165))
+- [`universalmotif` R package](https://bioconductor.org/packages/release/bioc/html/universalmotif.html) - mostly just for documentation, as it has a good intro to sequence motifs and motif enrichment.
+
+# Setting up analysis
+
+## RBP expression in anterior cingulate cortex
+- Checked RBP expression in anterior cingulate cortex i.e. is it expressed?
+
+```{r}
+
+# Load RBPs
+rbps <- 
+  attract_db_filter(path_to_attract_db = 
+                      file.path(
+                        path_to_raw_data,
+                        "rbp_analysis/attract_db/ATtRACT_db.txt"
+                      ), 
+                    organism_filter = "Homo_sapiens", 
+                    length_filter = 7,
+                    score_filter = "1.000000**") %>% 
+  .[["Gene_id"]]
+
+gtex <- 
+  read_tsv(
+    "https://storage.googleapis.com/gtex_analysis_v8/rna_seq_data/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct.gz", 
+    skip=2
+    ) %>% 
+  dplyr::rename(gene_id = Name) %>% 
+  dplyr::mutate(gene_id = str_replace(gene_id, "\\..*", "")) %>% 
+  dplyr::filter(gene_id %in% as.character(rbps))
+
+gtex %>% 
+  tidyr::gather(key = "tissue", value = "tpm", -gene_id, -Description) %>% 
+  dplyr::filter(str_detect(tissue, "Brain"), tpm == 0) %>% 
+  dplyr::arrange(Description) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+- Only RBP not expressed in ACC is RBMY1A1 (which is in fact only expressed in testis).
+
+## Creating PWM for RBPs of interest
+- RBPs downloaded from: https://attract.cnic.es/download. Includes two files
+    - ATtRACT_db.txt - metadata for positional weight matrices found in pwm.txt. Field Matrix_id refers to the pwm id in pwm.txt.
+    - pwm.txt - positional weight matrices 
+- Several versions of the metadata file were created. These include motifs that are:
+    1. Human, motif length > 6, highest quality score, filtered to remove RBPs not expressed in anterior cingulate cortex.
+    2. Tried running only RBM5 motifs that fit the above description (as there were multiple RBM5 consensus sequences that fit this description) -- this was based on highlighting of GGGGGGG-sequence containing HNRNPC in AME results.
+- Created function to loop through the metadata versions, creating their respective filtered PWMs and the command that can be run from the command line that will create the required meme format.
+```{r, eval = F}
+
+db <- attract_db_filter(path_to_attract_db = 
+                          file.path(
+                            path_to_raw_data,
+                            "rbp_analysis/attract_db/ATtRACT_db.txt"
+                            ), 
+                        organism_filter = "Homo_sapiens", 
+                        length_filter = 7,
+                        score_filter = "1.000000**")
+
+db_acc <- db %>% 
+  dplyr::filter(Gene_name != "RBMY1A1")
+
+db_rbm <-
+  read.table(
+    file.path(
+      path_to_raw_data,
+      "rbp_analysis/attract_db/ATtRACT_db.txt"
+    ),
+    header=TRUE, 
+    sep="\t"
+    ) %>% 
+    dplyr::filter(Gene_name == "RBM5", Score == "1.000000**", Len >= 7)
+
+db_list <- setNames(c(list(db_acc), list(db_rbm)),
+                    c("acc_RBP", "rbm_RBP"))
+
+saveRDS(
+  db_list, 
+  file.path(
+    path_to_raw_data,
+    "rbp_analysis/attract_db_filtered.Rds"
+  )
+)
+
+chen2meme_commands <- 
+  filter_pwm_and_convert(db_list,
+                         path_to_pl_script = here::here("R", "attract_pwm_human.pl"),
+                         path_to_pwm = file.path(
+                           path_to_raw_data,
+                           "rbp_analysis/attract_db/pwm.txt"
+                         ),
+                         output_path = file.path(
+                           path_to_raw_data,
+                           "rbp_analysis/attract_db/"
+                         ),
+                         path_to_chen2meme = "/home/ssethi/meme/libexec/meme-5.1.1/chen2meme")
+
+
+chen2meme_commands
+```
+
+```{r, echo = F}
+
+# Printed output of chen2meme_commands when run
+setNames(c(
+list("/home/ssethi/meme/libexec/meme-5.1.1/chen2meme /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/rbp_analysis/attract_db/pwm_acc_RBP.txt > /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/rbp_analysis/attract_db/pwm_acc_RBP.meme"),
+list("/home/ssethi/meme/libexec/meme-5.1.1/chen2meme /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/rbp_analysis/attract_db/pwm_rbm_RBP.txt > /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/rbp_analysis/attract_db/pwm_rbm_RBP.meme")),
+c("acc_RBP", "rbm_RBP"))
+
+```
+
+- Above commands run in bash to convert PWMs from `.txt` format --> `.meme` format.
+- Tables show RBPs in each list. 
+```{r, echo = F}
+
+db_list <- 
+  readRDS(
+    file.path(
+      path_to_raw_data,
+      "rbp_analysis/attract_db_filtered.Rds"
+    )
+  )
+
+print(names(db_list[1]))
+
+db_list[[1]] %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+print(names(db_list[2]))
+
+db_list[[2]] %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+
+```
+
+## Creating annotations
+- Annotations created within each of the analyses sections. A few general notes, however:
+    - For all RBP analyses, using results derived from cell-type corrected differential splicing analyses.
+    - For part **a**, only used comparisons to control. In part **b**, used all pairwise comparisons.
+    - Splicing definitions:
+        - Differentially spliced: cluster is successfully tested, FDR < 0.05 and |dPSI| >= 0.1
+        - Non-differentially spliced: cluster is successfully tested, FDR > 0.05 
+
+# Part a: scan of spliced sequences to determine density of RNA-binding protein motifs
+
+## Creating annotations and running FIMO
+- For first analysis (scan of spliced sequences to determine density of RNA-binding protein motifs), will need to create for each pairwise comparison, several lists:
+    1. Introns alone
+    2. Introns +/- 50 bp
+    3. Introns with adjoining exons (in those cases where adjoining exons can be assigned)
+    4. Proximal intronic regions (i.e. 50 bp of exon and 500 bp of intron). For introns with a length < 1000, these proximal intronic regions become one long region, as opposed to two regions.
+    5. 5' proximal intronic regions - this will not include any introns with a length < 1000.
+    6. 3' proximal intronic regions - this will not include any introns with a length < 1000.
+- Granges objects in these lists were reduced, such that the resulting fasta file did not contain repeated sequences. Problem with this solution is that we cannot trace enrichment directly back to cluster -- we can only trace it back to the region within which several clusters might be present.
+- Note: fastas were created using a masked DNA reference; repetitive and low complexity DNA regions are detected and replaced with N's. 
+- Following creation of lists, fimo analysis is run.
+- Following script was run by nohup: [`rbp_fimo_analysis.R`](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/rbp_fimo_analysis.R)
+
+```{bash, eval = F}
+
+nohup Rscript /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/rbp_fimo_analysis.R &>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/rbp_fimo_analysis.log&
+
+```
+
+### Note on creation of proximal intronic regions
+- When looking at introns within clusters, what is often seen is:
+    - The start co-ordinate is the same across clusters, with the end co-ordinate varying. Or vice versa.
+    - This is seen in the table below, where the first 3 three introns have the same start position, but different end positions.
+    - The problem with this is that each intron has it's own associated dPSI; thus, a proximal intronic region around the start position of this intron will have the same co-ordinates but 3 different associated dPSI. 
+    - This is extra problematic if one of these intron events would be considered "differentially spliced" while the remainder are not, as this means the same start proximal intronic sequence would be in both the positive and negative set in an AME analysis i.e. it would be redundant.
+    - There are 3 ways to solve this issue:
+        1. Remove sequences that are represented in positive and negative sequence sets.
+        2. Use the highest associated dPSI. **Opted for this option.**
+        3. Use the lowest associated dPSI.
+
+```{r}
+
+readRDS(
+  file.path(
+    path_to_raw_data,
+    "rbp_analysis/rbp_intron_exon_prox_coord.Rds"
+  )
+) %>% 
+  dplyr::filter(intron_exon_index %in% c(123178:123180)) %>% 
+  dplyr::distinct(intron_exon_index, cluster_id, chr, start_intron, end_intron)
+
+```
+
+### A few sanity checks of the proximal intron regions
+
+1. How many of our our proximal intronic regions have a length < 1000 bp (which are indicated by an NA in the tables below)?
+
+```{r}
+
+# Load query list
+query_list <- 
+  readRDS(
+    file.path(
+      path_to_raw_data,
+      "rbp_analysis/rbp_query_list.Rds"
+    )
+  )
+
+# Filter to include only proximal intronic regions
+query_list <- 
+  query_list %>% 
+  lapply(., function(list){
+    
+    list[str_detect(names(list), "prox")]
+    
+  })
+
+query_list %>% 
+  lapply(., function(list){
+    
+    list[1] %>% 
+      lapply(., function(gr){
+        
+        gr %>% 
+          as_tibble() %>% 
+          dplyr::group_by(prox_prime_position) %>% 
+          dplyr::count()
+        
+      })
+    
+  })
+
+```
+
+2. Do the regions in each list have the expected lengths?
+
+```{r}
+
+query_list %>% 
+  lapply(., function(list){
+    
+    list[1] %>% 
+      lapply(., function(gr){
+        
+        gr %>% 
+          as_tibble() %>% 
+          dplyr::group_by(prox_prime_position) %>% 
+          dplyr::summarise(
+              median_region_length = median(width),
+              max_region_length = max(width),
+              min_region_length = min(width))
+        
+      }) %>% 
+      qdapTools::list_df2df(col1 = "intron_annotation_type")
+    
+  }) %>% 
+  qdapTools::list_df2df(col1 = "comparison")
+
+```
+- As expected, proximal intronic regions where it was possible to assign either 5' or 3' have a length of minimum, median and maximum length of 551 bp. 
+- As expected, merged regions (i.e. where the intron was length < 1000):
+    - The maximum region length is 1101 (equivalent of summing 2 x 50 bp and 2 x 500 bp). 
+    - The minimum region length is 120 (equivalent of summing 2 x 50 bp and the minimum intron length permitted by STAR alignment, which is 20 bp).
+    - The median region length varies across comparisons.
+
+## Results
+- Results of FIMO can be viewed in one of two ways:
+    1. Sequence summary: summarise total RBP for each sequence.
+    2. RBP summary: summarise RBP binding for each RBP across the sequence set.
+- For both analyses, the user needs to set a p-value/q-value threshold for the sequences/RBPs used. This was done using:
+    1. Variable p-value: FIMO suggests a p-value threshold of p < 0.0001 when query sequences are less than 1000 bp. Given that our query sequences are of varying length, I set a varying p-value threshold that is dependent on sequence length. Formula: p-value threshold = 0.0001/(sequence length/1000).
+    2. Q-value. This is calculated by FIMO, so use this value to filter lists.
+- FIMO scans both strands. While there is an option to not search the reverse complement strand, this means FIMO only searches the + strand (as opposed to switching depending on the queried sequenced. Thus, ran FIMO searching both strands and then when summarising results, simply filtered for those enriched motifs found on the same as the strand on which the query sequence was present.
+
+### Using all human RNA-binding proteins with motif > 6 expressed in anterior cingulate cortex
+
+#### Sequence summary
+
+```{r, eval = F}
+
+fimo_rbp <- summarise_fimo_results(results_dir = 
+                                     file.path(
+                                       path_to_results,
+                                       "rbp_analysis/rbp_density/pwm_acc_RBP/"
+                                     ), 
+                                    significance_threshold = "variable", 
+                                    p_value = 0.0001,
+                                    cores = 9)
+
+fimo_rbp_fdr <- summarise_fimo_results(results_dir = 
+                                         file.path(
+                                           path_to_results,
+                                           "rbp_analysis/rbp_density/pwm_acc_RBP/"
+                                         ), 
+                                    significance_threshold = "fdr", 
+                                    q_value = 0.05,
+                                    cores = 9)
+
+saveRDS(
+  fimo_rbp, 
+  file.path(
+    path_to_results,
+    "rbp_analysis/rbp_density/pwm_acc_RBP/fimo_summary.Rds"
+  )
+)
+saveRDS(
+  fimo_rbp_fdr, 
+  file.path(
+    path_to_results,
+    "rbp_analysis/rbp_density/pwm_acc_RBP/fimo_summary_fdr.Rds"
+  )
+)
+
+```
+
+```{r}
+
+fimo_rbp <- 
+  setNames(
+    list(
+      readRDS(
+        file.path(
+          path_to_results,
+          "rbp_analysis/rbp_density/pwm_acc_RBP/fimo_summary.Rds"
+        )
+      ),
+      readRDS(
+        file.path(
+          path_to_results,
+          "rbp_analysis/rbp_density/pwm_acc_RBP/fimo_summary_fdr.Rds"
+        )
+      )),
+    c("p_val", "q_val"))
+
+fimo_rbp_seq_sum <- fimo_rbp %>% 
+  lapply(., function(fimo_results){
+    
+    fimo_results %>% 
+      lapply(., function(list){
+        
+        list$sequence_sum_enrich
+        
+      }) %>% 
+      qdapTools::list_df2df(col1 = "list_name") %>% 
+      tidyr::separate(list_name, into = c("comparison", "intron_annotation_type"), sep = ":", remove = F) %>% 
+      dplyr::mutate(comparison = fct_relevel(comparison,
+                                             c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB")),
+                    intron_annotation_type = fct_relevel(intron_annotation_type %>% 
+                                                           str_replace_all(., "_", " ") %>% 
+                                                           str_wrap(., width = 15),
+                                                         c("intron only", "intron\nadditional bp", "intron exon")))
+    
+  })
+
+fimo_rbp_n_sig <- fimo_rbp %>%
+  lapply(., function(fimo_results){
+    
+    fimo_results %>% 
+      lapply(., function(list){ list$significant_results %>% nrow()}) %>% 
+      qdapTools::list2df(col1 = "significant_sequence_RBP_enrichments", col2 = "list_name") %>% 
+      tidyr::separate(list_name, into = c("comparison", "intron_annotation_type"), sep = ":", remove = F) %>% 
+      dplyr::mutate(comparison = fct_relevel(comparison,
+                                             c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB")),
+                    intron_annotation_type = fct_relevel(intron_annotation_type %>% 
+                                                           str_replace_all(., "_", " ") %>% 
+                                                           str_wrap(., width = 15),
+                                                         c("intron only", "intron\nadditional bp", "intron exon")))
+    
+  })
+
+fimo_rbp_median <- fimo_rbp %>% 
+  lapply(., function(fimo_results){
+    
+    fimo_results %>% 
+      lapply(., function(list){ list$RBP_median_enrich }) %>% 
+      qdapTools::list_df2df(col1 = "list_name") %>% 
+      tidyr::separate(list_name, into = c("comparison", "intron_annotation_type"), sep = ":", remove = F) %>% 
+      tidyr::separate(motif_id, into = c("hgnc_symbol", "ensembl_id", "matrix_id"), sep = ":", remove = T) %>% 
+      dplyr::mutate(comparison = fct_relevel(comparison,
+                                             c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB")),
+                    intron_annotation_type = fct_relevel(intron_annotation_type %>% 
+                                                           str_replace_all(., "_", " "),
+                                                         c("intron only", "intron additional bp", "intron exon")))
+    
+  })
+
+```
+
+##### Variable p-value threshold
+```{r, fig.height=6, fig.cap= "(a) Cumulative distribution function plot and (b) density plot of the number of RBP motifs per 100 nucleotides. Variable p-threshold used."}
+
+ggpubr::ggarrange(fimo_ecdf_plot(results_df = fimo_rbp_seq_sum$p_val, 
+                                 facet_var = vars(comparison), 
+                                 colour_var = "intron_annotation_type", 
+                                 colour_palette = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)],
+                                 comparison, intron_annotation_type),
+                  fimo_density_plot(results_df = fimo_rbp_seq_sum$p_val, 
+                                    x_var = "sum_enrich_score",
+                                    facet_var = vars(comparison), 
+                                    colour_var = "intron_annotation_type", 
+                                    colour_palette = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)],
+                                    scales = NULL,
+                                    comparison, intron_annotation_type),
+                  nrow = 2,
+                  labels = c("a", "b"),
+                  common.legend = T,
+                  legend = "top")
+
+```
+
+```{r, fig.height = 4, fig.cap = "Bar plot displaying the number of significant motif enrichments (when using p-value threshold determined by sequence length) across all human RBPs and sequences queried."}
+
+fimo_rbp_n_sig$p_val %>% 
+  ggplot(., aes(x = comparison, y = significant_sequence_RBP_enrichments, fill = intron_annotation_type)) +
+  geom_col(position = position_dodge(width = 0.9), colour = "black") +
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)]) +
+  labs(x = "Genomic region", y = "Count of significant motif enrichments\nacross all RBPs and queried sequences") +
+  theme_rhr
+
+```
+
+##### q-value < 0.05
+```{r, fig.height=6, fig.cap= "(a) Cumulative distribution function plot and (b) density plot of the number of RBP motifs per 100 nucleotides. q < 0.05 used."}
+
+ggpubr::ggarrange(fimo_ecdf_plot(results_df = fimo_rbp_seq_sum$q_val, 
+                                 facet_var = vars(comparison), 
+                                 colour_var = "intron_annotation_type", 
+                                 colour_palette = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)],
+                                 comparison, intron_annotation_type),
+                  fimo_density_plot(results_df = fimo_rbp_seq_sum$q_val, 
+                                    x_var = "sum_enrich_score",
+                                    facet_var = vars(comparison), 
+                                    colour_var = "intron_annotation_type", 
+                                    colour_palette = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)],
+                                    scales = NULL,
+                                    comparison, intron_annotation_type),
+                  nrow = 2,
+                  labels = c("a", "b"),
+                  common.legend = T,
+                  legend = "top")
+
+```
+
+```{r, fig.height = 4, fig.cap = "Bar plot displaying the number of significant motif enrichments (when using q < 0.05) across all human RBPs and sequences queried."}
+
+fimo_rbp_n_sig$q_val %>% 
+  ggplot(., aes(x = comparison, y = significant_sequence_RBP_enrichments, fill = intron_annotation_type)) +
+  geom_col(position = position_dodge(width = 0.9), colour = "black") +
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(1:6)]) +
+  labs(x = "Genomic region", y = "Count of significant motif enrichments\nacross all RBPs and queried sequences") +
+  theme_rhr
+```
+
+##### Summary of results
+- Observations between correction thresholds:
+    - Q-value correction threshold appears to disproportionately affect the number of significant motif enrichments observed using the proximal intronic regions.
+- Observations across query sequences including entire intronic region vs. proximal intronic region:
+    - Irrespective of correction threshold, the median binding was higher in proximal intronic regions as compared to annotations that included entire intronic regions.
+- Observations across query sequences that included only the proximal intronic region:
+    - Irrespective of correction threshold and comparison, splitting proximal intronic regions into 5' and 3' results in higher median enrichment compared to joint proximal intronic regions.
+    - Between comparisons, median enrichment in 5' proximal intronic regions is higher for Control_vs_PDD and Control_vs_DLB compared to Control_vs_PD.
+
+#### RBP summary
+
+##### Variable p-value threshold
+```{r, fig.height = 16, fig.cap = "Heatmap of median enrichment score per RNA-binding protein across the tested sequence sets using variable p-value threshold. Sequences sets are labelled by comparison and the intron definition."}
+
+fimo_rbp_median$p_val %>% 
+  dplyr::filter(hgnc_symbol != "ELAVL3") %>% 
+  dplyr::select(list_name, hgnc_symbol, median_enrich_score) %>% 
+  tidyr::spread(key = "list_name", value = "median_enrich_score") %>% 
+  dplyr::mutate_each(funs(replace(., is.na(.), 0))) %>% 
+  tibble::remove_rownames() %>% 
+  tibble::column_to_rownames(var = "hgnc_symbol") %>% 
+  pheatmap::pheatmap(fontsize_col = 7,
+         fontsize_row = 7,
+         # treeheight_col = 10,
+         # treeheight_row = 30, 
+         color = viridis(100))
+
+```
+
+##### q-value < 0.05
+```{r, fig.height = 6, fig.cap = "Heatmap of median enrichment score per RNA-binding protein across the tested sequence sets using q-value threshold. Sequences sets are labelled by comparison and the intron definition."}
+
+fimo_rbp_median$q_val %>% 
+  dplyr::filter(!is.na(median_enrich_score)) %>% 
+  dplyr::select(list_name, hgnc_symbol, median_enrich_score) %>% 
+  tidyr::spread(key = "list_name", value = "median_enrich_score") %>% 
+  dplyr::mutate_each(funs(replace(., is.na(.), 0))) %>% 
+  tibble::remove_rownames() %>% 
+  tibble::column_to_rownames(var = "hgnc_symbol") %>% 
+  pheatmap::pheatmap(fontsize_col = 7,
+         fontsize_row = 7,
+         # treeheight_col = 10,
+         # treeheight_row = 30, 
+         color = viridis(100))
+
+```
+
+##### Summary of results
+- Observations between correction thresholds:
+    - Q-value correction highlights fewer RBPs.
+- Observations across query sequences including entire intronic region vs. proximal intronic region:
+    - Irrespective of correction threshold, there is a clear divide between these two types of sequence. In general, median enrichment for each RBP is higher in sequence sets containing proximal intronic regions compared to sequence sets containic entire intronic regions.
+    - Irrespective of correction threshold, RBP enrichments cluster primarily by their intron definition, as opposed to by comparison, suggesting that enrichments across comparisons are relatively similar (as would be expected).
+
+## Conclusions
+
+### Sequence summary
+- Proximal intronic regions appear to carry the most enrichment, thus will use these definitions to look for differences between differentially and non-differentially spliced clusters.
+- While some differences are observed between comparisons, these are marginal, as would be expected, given that we are using definitions of *all* successfully tested clusters, which ultimately were defined using all samples in every group. 
+- The exception to the previous statement are the 5' proximal intronic regions, which were markedly different between Control vs PD and Control vs PDD/DLB.
+
+#### Checks of 5' proximal intronic region
+- Observations:
+    - Count of significant motif enrichments across all RBPs and queried sequences is noticeably higher in 5'-proximal intronic regions compared to 3'-proximal intronic regions (and any other region). More interestingly, it is markedly higher in Control vs PDD/DLB compared to Control vs PD. 
+    - This is also reflected in median enrichment, which is higher in Control vs PDD/DLB compared to Control vs PD.
+- Performed a number of checks to ensure this was not due to coding errors.
+
+1. Check number of sequences across each granges object in query list used for fimo analysis.
+```{r, fig.height = 8, fig.cap = "Number of sequences in each queried set of sequences (a) before and (b) after granges objects were reduced (i.e. overlapping sequences were merged inton one sequence) and (c) when split into differentially spliced and non-differentially spliced events."}
+
+a <- query_list %>% 
+  lapply(., function(list) list %>% 
+           lapply(., function(gr) gr %>% length()) %>% 
+           qdapTools::list_vect2df(col1 = "intron_annotation_type", col3 = "n_sequences") %>% 
+           dplyr::select(-X2)) %>% 
+  qdapTools::list_df2df(col1 = "comparison") %>% 
+  dplyr::filter(str_detect(comparison, "Control")) %>% 
+  ggplot(aes(x = comparison, y = n_sequences, fill = intron_annotation_type)) + 
+  geom_col(position = position_dodge2(preserve = "single"), colour = "black") + 
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(1,3,2,4:6)]) +
+  theme_rhr
+
+b <- query_list %>% 
+  lapply(., function(list) list %>% 
+           lapply(., function(gr) reduce(gr) %>% length()) %>% 
+           qdapTools::list_vect2df(col1 = "intron_annotation_type", col3 = "n_sequences") %>% 
+           dplyr::select(-X2)) %>% 
+  qdapTools::list_df2df(col1 = "comparison") %>% 
+  dplyr::filter(str_detect(comparison, "Control")) %>% 
+  ggplot(aes(x = comparison, y = n_sequences, fill = intron_annotation_type)) + 
+  geom_col(position = position_dodge2(preserve = "single"), colour = "black") + 
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(1,3,2,4:6)]) +
+  theme_rhr
+
+c <- query_list %>% 
+  lapply(., function(list) list %>% 
+           lapply(., function(gr){
+             
+             query <- gr[c(abs(gr$deltapsi) >= 0.1 & gr$p.adjust < 0.05)]
+             control <- gr[!c(abs(gr$deltapsi) >= 0.1 & gr$p.adjust < 0.05)]
+             
+             tibble(splicing_status = c("ds", "non-ds"),
+                    n_sequences = c(length(query), length(control)))
+             
+           }) %>% 
+           qdapTools::list_df2df(col1 = "intron_annotation_type")) %>% 
+  qdapTools::list_df2df(col1 = "comparison") %>% 
+  dplyr::filter(str_detect(comparison, "Control")) %>% 
+  ggplot(aes(x = comparison, y = n_sequences, fill = intron_annotation_type)) + 
+  geom_col(position = position_dodge2(preserve = "single"), colour = "black") + 
+  facet_wrap(vars(splicing_status), scales = "free") +
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(1,3,2,4:6)]) +
+  theme_rhr
+
+ggpubr::ggarrange(a, b, c,
+                  labels = c("a", "b", "c"),
+                  common.legend = T,
+                  nrow = 3)
+
+```
+
+2. Check number of unique 5' and 3' proximal regions across all clusters (irrespective of comparison).
+```{r}
+
+clu_proximal <- 
+  readRDS(
+    file = 
+      file.path(
+        path_to_raw_data,
+        "rbp_analysis/rbp_intron_exon_prox_coord.Rds"
+      )
+    ) %>% 
+  tidyr::separate(cluster_id, into = c(NA, "cluster"), sep = ":", remove = F) %>% 
+  tidyr::separate(cluster, into = c(NA, NA, "strand"), sep = "_", remove = T) %>% 
+  dplyr::mutate(chr = str_c("chr", chr))
+
+print("Number of unique 5' proximal intronic regions: ")
+
+clu_proximal %>% 
+  dplyr::filter(prox_prime_position == "five_prime") %>% 
+  dplyr::distinct(strand, chr, start_prox, end_prox) %>% 
+  nrow()
+
+print("Number of unique 3' proximal intronic regions:")
+
+clu_proximal %>% 
+  dplyr::filter(prox_prime_position == "three_prime") %>% 
+  dplyr::distinct(strand, chr, start_prox, end_prox) %>% 
+  nrow()
+
+
+
+```
+
+3. Check FIMO commands reported in .html results match with expectation (they did).
+
+### RBP summary
+- As with sequence summary, higher median enrichment per RBP observed in proximal intronic regions that when using entire intronic regions.
+- In general, comparisons are very similar, as evidence by clustering primarily being driven by the intron definition, as opposed to the comparison. 
+
+# Part b: enrichment of motifs in differentially spliced clusters vs. non-differentially spliced clusters
+
+## Creating annotations and running AME
+- Based on results in part a, chose to use definition of proximal intronic regions.
+- Used query lists generated for pairwise comparisons in previous analysis, and separated these into differentially spliced (query) and non-differentially spliced lists (control).
+- Following script was run by nohup: [`rbp_ame_analysis.R`](https://github.com/RHReynolds/LBD-seq-bulk-analyses/blob/main/misc_scripts/rbp_ame_analysis.R)
+
+```{bash, eval = F}
+nohup Rscript /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/rbp_ame_analysis.R &>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/rbp_ame_analysis.log&
+
+```
+
+## Results
+
+```{r, eval=F}
+
+ame_rbp <- 
+  c(
+    summarise_ame_results(
+      results_dir = 
+        file.path(
+          path_to_results,
+          "rbp_analysis/rbp_enrichment_fasta/pwm_acc_RBP/"
+        ),
+      cores = 9),
+    summarise_ame_results(
+      results_dir = 
+        file.path(
+          path_to_results,
+          "rbp_analysis/rbp_enrichment_fasta/pwm_rbm_RBP/"
+        ),
+      cores = 9)
+  ) 
+
+saveRDS(
+  ame_rbp, 
+  file.path(
+    path_to_results,
+    "rbp_analysis/rbp_enrichment_fasta/ame_summary.Rds"
+  )
+)
+
+```
+
+```{r}
+
+ame_rbp <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "rbp_analysis/rbp_enrichment_fasta/ame_summary.Rds"
+    )
+  )
+
+ame_results <- 
+  S4Vectors::Filter(nrow, ame_rbp) %>% 
+  qdapTools::list_df2df(col1 = "list_name") %>% 
+  tidyr::separate(list_name, into = c("comparison", "intron_annotation_type", NA), sep = ":", remove = F) %>% 
+  tidyr::separate(motif_ID, into = c("hgnc_symbol", "ensembl_id", "matrix_id"), sep = ":", remove = T) %>% 
+  dplyr::mutate(list_name = list_name %>% 
+                  str_replace("query", "ds") %>% 
+                  str_replace("control", "nonds"),
+                comparison = fct_relevel(comparison,
+                                         fct_disease),
+                intron_annotation_type = case_when(intron_annotation_type == "prox_intron_five_prime" ~ "5' prox intron",
+                                                   intron_annotation_type == "prox_intron_three_prime" ~ "3' prox intron",
+                                                   TRUE ~ intron_annotation_type) %>% 
+                  str_replace("_", " "))
+
+```
+
+
+```{r}
+ame_results %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+
+```{r, fig.height = 4, fig.cap= "Barplot of RBP motif enrichment p-values in differentially spliced sequences vs non-differentially spliced sequences. Dashed line indicates p-value = 0.05; values above the dashed line are considered significant."}
+
+ame_results %>% 
+  ggplot(aes(x = hgnc_symbol, y = -log10(bonferroni_adj_p_val), fill = intron_annotation_type)) +
+  geom_col(position =  position_dodge2(width = 0.9, preserve = "single"), colour = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  facet_grid(rows = vars(motif_DB), cols = vars(comparison), scales = "free_x", space = "free_x") +
+  labs(x = "RBP", y = "-log10(bonferroni-adjusted p-value)") +
+  scale_fill_manual(values = ggsci::pal_jama("default", alpha = 1)(7)[c(6:4)]) +
+  theme_rhr + 
+  theme(strip.text.x = element_text(angle = 90),
+        strip.text.y = element_text(angle = 90),
+        legend.position = "bottom")
+
+```
+
+- Worth taking a look at the consensus sequences of the various RBPs.
+```{r}
+ame_results %>% 
+  dplyr::filter(bonferroni_adj_p_val < 0.05) %>% 
+  dplyr::distinct(hgnc_symbol, consensus)
+
+```
+- Notably, HNRNPC has the sequence GGGGGGG, which is also the consensus sequence for the following RBPs: 
+
+```{r}
+
+read.table(
+  file.path(
+    path_to_raw_data,
+    "rbp_analysis/attract_db/ATtRACT_db.txt"
+  ), 
+  header = T, 
+  sep = "\t"
+  ) %>% 
+  dplyr::filter(Organism == "Homo_sapiens", Motif == "GGGGGGG") %>% 
+  dplyr::distinct(Gene_name, Organism, Motif, Len, Score)
+```
+
+- Also, according to [Dominguez et al.](https://www.sciencedirect.com/science/article/pii/S1097276518303514) Figure 2A this sequence is also used by RBM25 (see cluster 15). This makes interpretation of this result all the more complicated!
+- The remaining RBPs, on the other hand, have consensus sequences that are only observed for that particular RBP with a quality score of 1 (i.e. the consensus sequences are distinct to these RBPs).
+
+```{r}
+
+read.table(
+  file.path(
+    path_to_raw_data,
+    "rbp_analysis/attract_db/ATtRACT_db.txt"
+  ), 
+  header = T, 
+  sep = "\t"
+  ) %>% 
+  dplyr::filter(Organism == "Homo_sapiens", 
+                Motif %in% (
+                  c("GAAGGAA", "CTGGATT", "CTAACCCTAA") %>% 
+                    # Replace DNA Ts with RNA Us
+                    str_replace_all("T", "U")
+                  )) %>% 
+  dplyr::distinct(Gene_name, Organism, Motif, Len, Score)
+```
+
+# Session info
+```{r}
+sessionInfo()
+```

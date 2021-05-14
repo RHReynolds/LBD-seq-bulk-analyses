@@ -1,0 +1,313 @@
+---
+title: "SRP058181"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: show
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(broom)
+library(corrplot)
+library(data.table)
+library(gProfileR)
+library(GeneOverlap)
+library(ggsci)
+library(ggpubr)
+library(tidyverse)
+library(readxl)
+library(RNAseqProcessing)
+library(rtracklayer)
+library(UpSetR)
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "top",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = F, warning = F, message= F)
+```
+
+> Aim: to format SRP058181, such that it can be used to validate (i) deconvolution and (ii) differentially spliced genes
+
+# File paths/files for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+
+sample_info <- 
+  read_excel(
+    path = 
+      file.path(
+        path_to_raw_data,
+        "sample_details/SRP058181_sample_metadata.xlsx")
+  ) %>% 
+  dplyr::na_if(.,"N/A") %>% 
+  dplyr::select(-Proteomics, -Proteomics_SV1, -Proteomics_SV2, -Proteomics_SV3, -Microarray_study_ID) %>% 
+  dplyr::mutate(sample_id = `RNA-Seq_Samples`,
+                Braak_score = Braak_score %>% 
+                  str_replace_all(c("IV" = "4",
+                                    "II-III" = "3",
+                                    "I-II" = "2",
+                                    "III" = "3",
+                                    "II" = "2",
+                                    "I" = "1")) %>% 
+                  as.integer(),
+                Disease_group = ifelse(Condition == "Control", "Control",
+                                       ifelse(Condition == "PD" & Dementia == "no", "PD",
+                                              ifelse(Condition == "PD" & Dementia == "yes", "PDD", NA))),
+                Disease_group = replace_na(Disease_group, "PD") %>% 
+                  ordered(levels = c("Control", "PD", "PDD"))) %>% 
+  dplyr::select(sample_id, Disease_group, everything(), -`RNA-Seq_Samples`)
+
+```
+
+# Downloading the data from recount2
+
+- Data available from recount2 under id, SRP058181.
+- Downloaded using the `recount` package. As we already have mean coverage and bigwigs, these do not need to be downloaded.
+
+```{r recount2 download, echo = T, eval = F}
+
+library(recount)
+
+counts <- c("rse-gene", "rse-exon", "counts-gene", "counts-exon")
+junctions <- c("rse-jx", "counts-jx")
+
+for(i in 1:length(counts)){
+  
+  download_study("SRP058181", 
+               type = counts[i], 
+               outdir = file.path(path_to_recount, "counts"), 
+               download = TRUE)
+  
+}
+
+
+for(i in 1:length(junctions)){
+  
+  download_study("SRP058181", 
+               type = junctions[i], 
+               outdir = file.path(path_to_recount, "junctions"), 
+               download = TRUE)
+  
+}
+
+download_study(
+  "SRP058181", 
+  type = "phenotype", 
+  outdir = path_to_recount, 
+  download = TRUE
+)
+```
+
+
+# Background
+
+- Reference: https://bmcmedgenomics.biomedcentral.com/articles/10.1186/s12920-016-0164-y
+- RNA-seq performed on prefrontal cortex (BA9), using 44 neurologically normal control inidividuals and 29 individuals with diagnosed PD.
+    - Note that this does differ from our PD-sequencing samples, which were sampled from anterior cingulate (BA24, BA32 and BA33).
+
+```{r, fig.width=10, fig.align='center'}
+knitr::include_graphics(
+  here::here("docs", "replication", "Gray727-Brodman.png")
+  )
+```
+
+- **IMPORTANT:** All samples were derived from males of European ancestry. 
+- Library prep and sequencing:
+    - Illumina TruSeq RNA Sample Prep Kit
+    - polyA selection
+    - 101-bp paired end on Illumina HiSeq 2000
+    - Alignment performed as part of recount2. 
+        - Aligned to hg38 using Rail-RNA.
+        - Gene and exon counts compiled by Rail-RAN using Gencode v25 annotation.
+
+```{r, eval = T}
+
+sample_info %>% 
+  dplyr::select(-Disease_group) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap') 
+
+```
+
+## Sample demographics - discrete variables
+- **Note:** there are some individuals with both PD and dementia. For downstream analyses, these should be separated into their own group (PDD) to mirror our experimental set-up.
+```{r sample Dementia, fig.cap="Number of individuals (a) from each brain bank and (b) with dementia across disease groups."}
+
+a <- 
+  ggplot(data = sample_info %>% 
+           dplyr::select(Condition, Source) %>% 
+           dplyr::group_by(Condition, Source) %>% 
+           dplyr::summarise(n = n()),
+         aes(x = Condition,
+             y = n,
+             fill = Source)) + 
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+  facet_grid(~Condition, scale = "free_x") + 
+  labs(x = "Disease Group", y = "Number of individuals") +
+  scale_fill_manual(values = pal_jama("default", alpha = 0.9)(7)[c(1,2,3)]) +
+  theme_rhr +
+  theme(
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()
+  )
+
+b <- 
+  ggplot(data = sample_info %>% 
+           dplyr::select(Condition, Dementia) %>% 
+           dplyr::mutate(Dementia = tidyr::replace_na(sample_info$Dementia, "NA")) %>%
+           dplyr::group_by(Condition, Dementia) %>% 
+           dplyr::summarise(n = n()),
+         aes(x = Condition,
+             y = n,
+             fill = Dementia)) + 
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+  facet_grid(~Condition, scale = "free_x") + 
+  labs(x = "Disease Group", y = "Number of individuals") +
+  scale_fill_manual(values = pal_jco("default", alpha = 0.9)(10)[c(3,9,1)]) +
+  theme_rhr +
+  theme(
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()
+  )
+
+ggarrange(a, b, nrow = 2,
+          labels = c("a", "b"),
+          align = c("hv"))
+
+```
+
+## Sample demographics - numeric variables 
+- Individuals with PD and a "yes" in the sample info were assigned to the PDD group in the newly created "Disease_group" column.
+- Individuals with PD and "NA" in the "Dementia" column were assigned to the PD group in the newly created "Disease_group" column.
+- Worth noting that some of the numeric variables are not complete for all samples.
+    - Only 11 samples with motor onset
+    - 9 samples without Braak score
+    - 10 PD/PDD samples without disease duration.
+```{r sample demographics, fig.cap="Plots of clinical, pathological and sample measures across disease groups."}
+
+ggplot(data = sample_info %>%  
+         dplyr::select(
+           -Source, -Sex, -Dementia, -Lewy_Body_pathology, 
+           -ApoE, -Cause_of_death, -Condition
+         ) %>% 
+         tidyr::gather(
+           key = sample_characteristic, 
+           value = value, 
+           -sample_id, -Disease_group
+         ) %>% 
+         dplyr::mutate(
+           characteristic_type = 
+             case_when(
+               sample_characteristic %in% 
+                 c("Age_at_death", "Motor_onset", "Disease_duration") ~ "Clinical measure",
+               sample_characteristic %in% c("Braak_score") ~ "Pathological measure",
+               sample_characteristic %in% c("PMI", "RIN") ~ "Sample measures"
+             ),
+           value = 
+             as.numeric(value)
+         ),
+       aes(x = Disease_group,
+           y = value,
+           fill = Disease_group)) + 
+  geom_boxplot() + 
+  facet_wrap(vars(characteristic_type, sample_characteristic), 
+             scales = "free_y") +
+  labs(x = "Disease Group", y = "") +
+  scale_fill_manual(values = c("#868686", "#c4ebe3", "#73cab9")) +
+  theme_rhr+
+  theme(
+    legend.position = "none"
+  )
+
+
+```
+
+### Kruskal-Wallis
+```{r kruskal-wallis demographics, eval = T}
+
+sample_info %>%  
+  dplyr::select(-Source, -Sex, -Dementia, -Lewy_Body_pathology, 
+                -ApoE, -Cause_of_death, -Condition) %>% 
+  tidyr::gather(
+    key = test_variable, 
+    value = value, 
+    -Disease_group, -sample_id
+    ) %>% 
+  dplyr::group_by(test_variable) %>% 
+  dplyr::do(
+    kruskal.test(x= .$value, g = .$Disease_group) %>% 
+       broom::tidy()
+    ) %>% 
+  dplyr::arrange(p.value)
+
+```
+
+### Post-hoc pairwise wilcox tests with FDR correction
+```{r pairwise wilcox tests}
+
+sample_info %>% 
+  dplyr::select(sample_id, Disease_group, RIN, Braak_score, Age_at_death) %>% 
+  tidyr::gather(test_variable, value, -Disease_group, -sample_id) %>% 
+  dplyr::group_by(test_variable) %>% 
+  dplyr::do(pairwise.wilcox.test(x= .$value, g = .$Disease_group, p.adjust.method = "BH") %>% 
+              broom::tidy()) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+```
+
+### Summary
+- Braak score (i.e. AD pathology), age at death and RIN found to be significantly different between groups.
+- Post-hoc pairwise wilcox tests (corrected for multiple comparisons with FDR) demonstrate that significant differences for braak score, age at death and RIN are only observed between each disease group and the control group, and not between PD with/without dementia. 
+- Matched for PMI.
+- Cannot really say whether matched for motor onset and disease duration given missing values.
+
+# Deconvolution
+- Deconvolution of SRP058181, using our own snRNA-seq. See report: [SRP058181_deconvolution.html](SRP058181_deconvolution.html).
+
+## Summary
+- Looking only at controls, the two datasets are indistinguishable, suggesting that cell-type proportions between the two are similar.
+- We do pick up on some similar themes e.g. astrocyte and oligodendrocyte proportions appear to be quite similar between the two datasets; similar rise of microglial and vascular proportions in PD compared to controls seen in both datasets.
+
+# Post-quantification QC
+For details, see: [SRP058181_post_quant_QC.html](SRP058181_post_quant_QC.html)
+
+# Leafcutter
+- To determine appropriate covariate-correction, ran PCA with different correction methods applied to expression data. For details, see: [SRP058181_post_correction_PCA.html](SRP058181_post_correction_PCA.html)
+- Differential splicing performed with two different covariate correction strategies:
+    - AoD & RIN
+    - AoD, RIN, PMI and cell-type proportions
+    - For full details, see: [SRP058181_leafcutter.html](SRP058181_leafcutter.html)
+    
+# Replication analyses
+- For details, refer to: [cluster_validation_btwn_datasets.html](cluster_validation_btwn_datasets.html)
+    - Layers of replication:
+        1. At level of junctions
+        2. At level of clusters
+        3. At level of differential splicing
+
+# Session info
+```{r}
+sessionInfo()
+```
+

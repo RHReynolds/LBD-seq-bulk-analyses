@@ -1,0 +1,606 @@
+---
+title: 'Leafcutter: intron annotation and visualisation'
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+```{r setup, include=FALSE}
+
+library(ggpubr)
+library(ggsci)
+library(tidyverse)
+library(stringr)
+library(readxl)
+library(rtracklayer)
+devtools::load_all("/home/rreynolds/packages/dasper/")
+
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "right",
+        strip.text = element_text(size = 8),
+        axis.text.x = element_text(size = 8, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+
+> Aims: to annotate introns within leafcutter clusters by .gtf exon definitions; to identify and visualise diffential splicing events that overlap between comparisons and to assign relevance to differential splicing events.
+
+# File paths for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+
+```
+
+# Annotate introns
+
+```{r, echo = F}
+
+leafcutter_list <- 
+  setNames(
+    list(
+      readRDS(
+        file.path(path_to_results,
+                  "leafcutter/diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.Rds"
+        )
+      ),
+      readRDS(
+        file.path(path_to_results,
+                  "leafcutter/diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.Rds"
+        )
+      )
+    ),
+    c("covar", "PC")
+  )
+
+```
+
+## Annotating introns
+- Used [`annotate_junc_ref()`](https://github.com/dzhang32/dasper/blob/master/R/deprecated.R) from David's dasper package. This function has since been deprecated and replaced by `junction_annot`. Both functions perform the same task, but `junction_annot` has been made to run faster.    
+- `annotate_junc_ref()` takes as input the junction co-ordinates and annotates the start and end position based on precise overlap with a known exon boundary. Then using reference annotation, infers the strand of junction and categorises junctions in "annotated", "novel_acceptor", "novel_donor", "novel_combo", novel_exon_skip", "ambig_gene" & "none".
+- Initial attempts to annotate introns return very small numbers of annotated junctions (~ 30)
+- Using SJ.out.tab files from STAR alignment, could determine that leafcutter adds +1 bp to intron ends. Thus, 1 bp needed removal from ends. With this tweak, proportion of annotated increased dramatically. 
+    - Note: issue started on Leafcutter Github about this (https://github.com/davidaknowles/leafcutter/issues/117). Developers recommended use of a different script for clustering (leafcutter_cluster_regtools.py) as opposed to leafcutter_cluster.py. Differences seem to be minimal other than a boost in speed (https://www.diffchecker.com/aZ2mVONk).
+
+```{r, eval = F, class.source='fold-show'}
+
+annotated <- setNames(vector(mode = "list", 2), 
+                      c("covar", "PC"))
+
+annotated <- leafcutter_list %>% 
+  lapply(., function(x){
+    
+    # Filter defined introns by those successfully tested
+    x$intron_usage %>% 
+      tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster_id"), sep = ":", remove = F) %>% 
+      dplyr::mutate(cluster_id = str_c(chr, ":", cluster_id)) %>% 
+      dplyr::filter(cluster_id %in% c(x$cluster_significance %>% 
+                                        dplyr::filter(status == "Success") %>% 
+                                        .[["cluster"]] %>% 
+                                        unique())) %>% 
+      dplyr::select(-chr, -start, -end) %>% 
+      # Convert leafcutter output to input for annotate_junc_ref
+      convert_leafcutter(leafcutter_results = .,
+                         use_strand = TRUE) %>% 
+      # Annotate introns
+      dasper::annotate_junc_ref(junc_metadata = .,
+                                gtf = path_to_ref_gtf)
+    
+    
+  })
+
+saveRDS(
+  annotated$covar, 
+  file = 
+    file.path(path_to_results,
+              "leafcutter/diff_splicing/leafcutter_ds_SexRINAoD_gtfannotated.Rds"
+    )
+)
+saveRDS(
+  annotated$PC, 
+  file = 
+    file.path(path_to_results,
+              "leafcutter/diff_splicing_PCaxes/leafcutter_ds_PCaxes_gtfannotated.Rds"
+    )
+)
+
+```
+
+- Shown below is are print-outs with the number of introns by annotation type. The significant column denotes the number of introns by annotation type that were found significantly differentially spliced post-correction with (i) covariates (AoD, Sex and RIN) or (ii) PC axes.
+- Two definitions of differentially spliced:
+    - Lenient: FDR < 0.05
+    - Stringent: FDR < 0.05, |dPSI| >= 0.1
+
+### Lenient
+```{r, echo = F}
+
+annotated <- setNames(vector(mode = "list", length = 2),
+         c("covar", "PC"))
+
+annotated$covar <- 
+  readRDS(
+    file.path(path_to_results,
+              "leafcutter/diff_splicing/leafcutter_ds_SexRINAoD_gtfannotated.Rds"
+    )
+  )
+annotated$PC <- 
+  readRDS(
+    file.path(path_to_results,
+              "leafcutter/diff_splicing_PCaxes/leafcutter_ds_PCaxes_gtfannotated.Rds"
+    )
+  )
+
+# Significant ds events
+for(i in 1:length(annotated)){
+  
+  print(names(annotated)[i])
+  
+  annotated[[i]] %>% 
+    as.data.frame() %>%
+    dplyr::group_by(junc_cat) %>% 
+    dplyr::summarise(all = n()) %>% 
+    dplyr::inner_join(annotated[[i]] %>% 
+                        as.data.frame() %>% 
+                        dplyr::inner_join(leafcutter_list[[i]]$significant_clusters_0.05_filter %>% 
+                                            dplyr::mutate(cluster_id = str_c(chr, ":", cluster)) %>% 
+                                            dplyr::distinct(comparison, cluster_id)
+                        ) %>% 
+                        dplyr::group_by(junc_cat) %>% 
+                        dplyr::summarise(significant = n())) %>% 
+    dplyr::mutate(proportion = significant/all) %>% 
+    dplyr::arrange(-all) %>% 
+    print()
+  
+}
+
+```
+
+### Stringent
+```{r}
+# Significant ds events
+for(i in 1:length(annotated)){
+  
+  print(names(annotated)[i])
+  
+  annotated[[i]] %>% 
+    as.data.frame() %>%
+    dplyr::group_by(junc_cat) %>% 
+    dplyr::summarise(all = n()) %>% 
+    dplyr::inner_join(annotated[[i]] %>% 
+                        as.data.frame() %>% 
+                        dplyr::inner_join(leafcutter_list[[i]]$significant_clusters_0.05_filter %>% 
+                                            dplyr::mutate(cluster_id = str_c(chr, ":", cluster)) %>% 
+                                            # Add dPSI filter
+                                            dplyr::filter(abs(deltapsi) >= 0.1) %>% 
+                                            dplyr::distinct(comparison, cluster_id)
+                        ) %>% 
+                        dplyr::group_by(junc_cat) %>% 
+                        dplyr::summarise(significant = n())) %>% 
+    dplyr::mutate(proportion = significant/all) %>% 
+    dplyr::arrange(-all) %>% 
+    print()
+  
+}
+```
+
+
+> For simplicity, from this point on only results corrected with PC axes will be used.
+
+- As a quick sanity check, it is also worth checking whether the leafcutter `leafcutter_ds.R` annotates intron clusters correctly using the inputted exon file (`Homo_sapiens.GRCh38.97_LC_exon_file.txt.gz`).
+
+```{r, class.source='fold-show'}
+
+# All leafcutter-annotated genes also found in annotated lists?
+(leafcutter_list$PC$significant_clusters_0.05_filter$genes %>% unique()) %in% (annotated$PC$gene_name_junc %>% unlist() %>% unique()) %>% 
+  all()
+
+```
+
+# Visualising overlapping events
+> Aim: to identify and visualise diffential splicing events that overlap between comparisons
+
+- Of the significant differentially spliced in identified above:
+    - What is the proportion of various annotation types within each comparison?
+    - How many overlap between comparisons? And how many comparisons do they overlap?
+    - What proportion of differentially spliced clusters include only annotated introns?
+    
+## Proportion of annotation types within each comparison
+```{r, fig.cap="Proportion of (a) all successfully tested introns and (b) the subset of differentially spliced introns coloured by annotation type. Comparisons ordered by proportion of annotated introns."}
+
+# All successfully tested introns
+success <- annotated$PC %>% 
+  as.data.frame() %>% 
+  dplyr::inner_join(leafcutter_list$PC$cluster_significance %>% 
+                      dplyr::filter(status == "Success") %>% 
+                      dplyr::distinct(comparison, cluster) %>% 
+                      dplyr::rename(cluster_id = cluster))
+
+# Significant ds events (|dPSI| >= 0.1)
+significant <- annotated$PC %>% 
+                      as.data.frame() %>% 
+                      dplyr::inner_join(leafcutter_list$PC$significant_clusters_0.05_filter %>% 
+                                            dplyr::mutate(cluster_id = str_c(chr, ":", cluster)) %>% 
+                                            # Add dPSI filter
+                                            dplyr::filter(abs(deltapsi) >= 0.1) %>% 
+                                            dplyr::distinct(comparison, cluster_id)
+                        )
+
+# Initiate lists
+intron_list <- list(success, significant)
+plot_list <- vector(mode = "list", 2)
+
+for(i in 1:length(intron_list)){
+  
+  count <- intron_list[[i]] %>% 
+    dplyr::filter(!junc_cat == "ambig_gene") %>% 
+    dplyr::group_by(comparison, junc_cat) %>% 
+    dplyr::summarise(n = n()) %>% 
+    dplyr::mutate(prop = n/sum(n)) %>% 
+    dplyr::ungroup()
+  
+  plot_list[[i]] <- count %>% 
+    dplyr::mutate(junc_cat = junc_cat %>% factor(levels = rev(c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))),
+                comparison = comparison %>% factor(levels = count %>% 
+                                                                   dplyr::filter(junc_cat == "annotated") %>% 
+                                                                   dplyr::arrange(desc(prop)) %>% 
+                                                                   .[["comparison"]])) %>% 
+  ggplot(aes(x = comparison, y = prop, fill = junc_cat), colour = "black") +
+  geom_col() +
+  labs(x = "") +
+  scale_fill_manual(name = "Acceptor/donor annotation", 
+                    values = rev(c("#3C5488", "#E64B35", "#00A087", "#4DBBD5", "#7E6148", "grey"))) +
+  theme_rhr
+  
+}
+
+ggarrange(plotlist = plot_list,
+          labels = c("a", "b"),
+          common.legend = TRUE, legend = "top")
+
+# saveRDS(intron_list, here::here("workflows", "figures", "intron_list.Rds"))
+
+```
+
+## Number of overlapping introns
+- To determine the proportion of unique introns we calculate: (number of unique introns)/(total number of introns)
+
+```{r}
+
+n_unique_int <- significant %>% 
+  dplyr::filter(!junc_cat == "ambig_gene") %>% 
+  dplyr::group_by_at(vars(!!!c("seqnames", "start", "end", "cluster_id"))) %>%
+  dplyr::filter(n() == 1) %>%
+  nrow()
+
+n_total_int <- significant %>% 
+  dplyr::filter(!junc_cat == "ambig_gene") %>%
+  dplyr::distinct(seqnames, start, end, cluster_id) %>% 
+  nrow()
+
+(n_unique_int/n_total_int) *100
+
+```
+
+- In other words, the proportion of introns that are found differentially spliced in only one comparison is relatively large.
+- This is also demonstrated in the plot below, where it is clear that the largest number of introns are found to overlap 1 comparison.
+
+```{r, echo = F, fig.cap = "**Figure**: Number of differentially spliced introns across overlaps."}
+
+significant <- significant %>% 
+  dplyr::filter(!junc_cat == "ambig_gene") %>% 
+  dplyr::mutate(unique_id = str_c(cluster_id, ":", start, ":", end),
+                junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  inner_join(significant %>% 
+               dplyr::filter(!junc_cat == "ambig_gene") %>% 
+               dplyr::mutate(unique_id = str_c(cluster_id, ":", start, ":", end),
+                             junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+               dplyr::group_by(unique_id, junc_cat) %>% 
+               dplyr::summarise(n_overlaps = n() %>% 
+                                  factor(levels = c("1", "2", "3", "4", "5", "6"))))
+
+significant %>% 
+  dplyr::distinct(unique_id, junc_cat, n_overlaps) %>% 
+  ggplot(aes(x = n_overlaps, fill = junc_cat), colour = "black") +
+  geom_bar(position = position_dodge2(preserve = "single", padding = 0)) +
+  facet_wrap(~ junc_cat) +
+  labs(x = "Number of overlaps") +
+  scale_fill_manual(name = "Acceptor/donor annotation", 
+                    values = c("#3C5488", "#E64B35", "#00A087", "#4DBBD5", "#7E6148", "grey")) +
+  theme_rhr +
+  theme(legend.position = "top")
+```
+
+## Distribution of annotation types across comparisons
+- Worth noting that the distribution of annotation types varies by comparison, especially when grouped by the number of comparisons these introns were found to overlap.
+    - Control_vs_PDD: proportion of unique novel acceptors/novel exon skips lower than in other comparisons -- appears to be driven by a higher proportion of these events overlapping at least one other comparison.
+
+```{r, echo = F, fig.height=7, fig.cap = "**Figure**: Proportion of differentially spliced introns per overlap across annotation types and comparisons. Proportions were calculated per comparison, by dividing the number of distinct events in each annotation type by the total number across a comparison."}
+
+# To ensure similar scales across rows in facet_grid create dummy data
+scales <- significant %>% 
+  dplyr::filter(!junc_cat == "ambig_gene") %>% 
+  dplyr::group_by(comparison, junc_cat) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(prop = n/sum(n)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(comparison, junc_cat, prop) %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none")),
+                prop = rep(c(0.65, 0.1, 0.1, 0.1, 0.1, 0.1), 6),
+                n_overlaps = rep(c(4), 36)) 
+
+# Plot
+significant %>% 
+  dplyr::distinct(comparison, unique_id, n_overlaps, junc_cat) %>% 
+  dplyr::group_by(comparison, n_overlaps, junc_cat) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::mutate(prop = n/sum(n)) %>% 
+  ggplot(aes(x = n_overlaps, y = prop, fill = junc_cat), colour = "black") +
+  geom_col(position = position_dodge2(preserve = "single", padding = 0)) +
+  geom_point(data = scales, aes(x = n_overlaps, y = prop), alpha = 0) +
+  facet_grid(junc_cat ~ comparison, scales = "free_y") +
+  labs(y = "Proportion of differentially spliced introns") +
+  scale_fill_manual(name = "Acceptor/donor annotation", 
+                    values = c("#3C5488", "#E64B35", "#00A087", "#4DBBD5", "#7E6148", "grey")) +
+  theme_rhr +
+  theme(legend.position = "top")
+  
+```
+
+## Proportion of clusters containing only annotated introns
+```{r, fig.cap="Proportion of differentially spliced clusters containing introns that are all fully annotated. Comparisons are ordered by the proportion of TRUE values."}
+
+cluster_annot_count <- significant %>% 
+  dplyr::group_by(comparison, cluster_id) %>% 
+  dplyr::summarise(introns_all_annotated = all(junc_in_ref)) %>% 
+  dplyr::group_by(comparison, introns_all_annotated) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::mutate(prop = n/sum(n)) %>% 
+  dplyr::ungroup()
+
+cluster_annot_count %>% 
+  dplyr::mutate(comparison = factor(comparison, cluster_annot_count %>% 
+                                      dplyr::filter(introns_all_annotated == TRUE) %>% 
+                                      dplyr::arrange(-prop) %>% 
+                                      .[["comparison"]])) %>% 
+  ggplot(aes(x = comparison, y = prop, fill = introns_all_annotated)) +
+  labs(y = "Proportion of clusters") +
+  geom_col() +
+  theme_rhr
+
+```
+
+# Assigning relevance to differential splicing events
+>Aim: to assign relevance to differential splicing events
+
+- Depending on the annotation type, the following can be done
+    - Annotated: check overlap with PD loci
+    - Partially annotated
+        - Exon skipping events: can ask whether an exon skipping event results in the removal of a constitutive exon
+        - Check tolerance to mutations around acceptor/donor sites/tolerance to missense mutations
+
+## Overlap with PD risk genes
+- For sporadic PD, 2 sets of genes available:
+    - Those implicated by proximity to a PD locus
+    - Those identified using mendelian randomisation and 4 QTL datasets:  a large meta-analysis of mRNA expression across brain tissues, mRNA expression in the substantia nigra, mRNA expression in blood, and methylation in blood. **Used this list.**
+- Can also use predicted mendelian genes as reported by Genomics England (i.e. green genes)
+```{r, class.source='fold-show'}
+
+# Read in PD genes
+PD_genes <- 
+  setNames(vector(mode = "list", length = 2),
+                     c("mendelian", "sporadic"))
+
+PD_genes$mendelian <- 
+  read_delim(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/20191128_GE_ParkinsonDiseaseComplexParkinsonism_greengenes.tsv"
+    ),
+    delim = "\t"
+  ) %>% 
+  dplyr::rename(Gene = `Gene Symbol`)
+PD_genes$sporadic <- 
+  read_excel(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/TableS6_Complete_summary_statistics_for_QTL_Mendelian_randomization.xlsx"
+    )
+  ) %>% 
+  dplyr::filter(`Pass Bonferroni` == "pass")
+
+# Note that the following genes in the mendelian list are also present within the sporadic MR list
+PD_genes$mendelian$Gene[PD_genes$mendelian$Gene %in% PD_genes$sporadic$Gene]
+
+# Differentially spliced genes overlapping PD genes
+PD_genes %>% 
+  lapply(., function(x){
+    
+    significant %>%  
+      dplyr::filter(gene_name_junc %in% x$Gene) %>% 
+      .[["gene_name_junc"]] %>% 
+      unlist() %>% 
+      unique() %>% 
+      sort()
+    
+  })
+
+leafcutter_list$PC$significant_clusters_0.05_filter %>% 
+  dplyr::filter(genes %in% unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene))) %>% 
+  dplyr::distinct(genes, comparison, cluster) %>% 
+  dplyr::arrange(genes) %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap')
+
+```
+
+```{r, echo = F, fig.cap = "**Figure**: Number of differentially spliced introns overlapping (a) genes implicated in mendelian and (b) sporafic forms of PD. Differentially spliced introns have been grouped by the number of comparisons they overlap."}
+
+plot_list <- vector(mode = "list", length = 2)
+
+for(i in 1:length(PD_genes)){
+  
+  plot_list[[i]] <- significant %>%  
+            dplyr::filter(gene_name_junc %in% PD_genes[[1]]$Gene) %>% 
+            dplyr::distinct(unique_id, junc_cat, .keep_all = T) %>% 
+            ggplot(aes(x = n_overlaps, fill = junc_cat), colour = "black") +
+            geom_bar(position = position_dodge2(preserve = "single", padding = 0)) +
+            facet_wrap(~ junc_cat) +
+            labs(x = "Number of overlaps") +
+            scale_fill_manual(name = "Acceptor/donor annotation", 
+                              values = c("#3C5488", "#4DBBD5", "#E64B35", "#00A087", "#7E6148")) +
+            theme_rhr +
+            theme(legend.position = "none")
+  
+}
+
+ggarrange(plotlist = plot_list, 
+          labels = c("a", "b"))
+
+```
+
+- Looking at the plot above, the following is clear:
+    - Most introns overlapping PD-associated genes are annotated.
+    - Most overlaps with PD-associated genes occur across 1 comparison i.e. they are unique.
+- But of those PD-associated genes, how many have an overlapping differentially spliced intron cluster containing only annotated introns?
+
+```{r, fig.cap="Number of (a) genes implicated in mendelian PD and (b) sporadic PD that contain only annotated introns."}
+
+plot_list <- vector(mode = "list", length = 2)
+
+for(i in 1:length(PD_genes)){
+  
+  count <- significant %>% 
+    dplyr::filter(gene_name_junc %in% PD_genes[[i]]$Gene) %>% 
+    dplyr::group_by(comparison, cluster_id) %>% 
+    dplyr::summarise(introns_all_annotated = all(junc_in_ref)) %>% 
+    dplyr::group_by(comparison, introns_all_annotated) %>% 
+    dplyr::summarise(n = n()) %>% 
+    dplyr::mutate(prop = n/sum(n)) %>% 
+    dplyr::ungroup()
+  
+  plot_list[[i]] <- count %>% 
+    # dplyr::mutate(comparison = factor(comparison, count %>% 
+    #                                   dplyr::filter(introns_all_annotated == TRUE) %>% 
+    #                                   dplyr::arrange(-prop) %>% 
+    #                                   .[["comparison"]])) %>% 
+    ggplot(aes(x = comparison, y = n, fill = introns_all_annotated)) +
+    labs(y = "Number of genes") +
+    geom_col() +
+    theme_rhr
+  
+}
+
+ggarrange(plotlist = plot_list, 
+          labels = c("a", "b"),
+          common.legend = TRUE,
+          legend = "top")
+
+```
+
+## Overlap with UniProt features
+- We can check the overlap of all differentially spliced introns with UniProt features.
+    - UniProt features extracted using modified code from maser::mapProteinFeaturesToEvents() - https://github.com/DiogoVeiga/maser/blob/master/R/mappingEvents.R.
+    - Accesses UniProt genome annotations from the following website: ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/genome_annotation_tracks. A total of 25 tracks were accessed, which covered the following protein feature categories: domains and sites, molecule processing, post-translational modifi cations, structural features and topology. - To calculate the proportion of DS introns that overlap a UniProt protein feature, differentially spliced introns first overlapped with the genomic coordinates of UniProt protein features. Provided the start and end coordinates of the intron fall within the coordinates of at least one protein feature, this is considered an overlap. 
+- The number of differentially spliced introns that overlap at least one protein feature are then divided by the total number of differentially spliced introns within a category of splicing event.
+
+```{r}
+# Load uniprot features
+source(file = here::here("R", "extract_uniprot_features.R"))
+
+uniprot <-
+  create_granges_uniprot(
+    tracks = c("Domain_and_Sites", "Molecule_Processing", "PTM", "Structural_Features", "Topology"),
+    by = "category",
+    ncores = 12
+  )
+```
+
+```{r, fig.cap = "Number of differentially spliced introns that overlap at least one UniProt protein feature as a proportion of the total number of differentially spliced introns within a category of splicing event. UniProt protein features included domains and sites, molecule processing, post-translational modifications, structural features and topological features. Proportions were calculated separately for each pairwise comparison."}
+
+# Load all annotated introns (annotated in here::here("workflows", "validation", cluster_validation_btwn_datasets.Rmd")
+clusters <- 
+  readRDS(
+  file.path(
+    path_to_results, "leafcutter/intron_clustering/tissue_polyA_all_clusters_gtfannotated.Rds"
+    )
+  )
+
+# Proportion of DS introns that overlap a protein feature
+uniprot_features <-
+  overlap_granges_with_uniprot(
+    junc_metadata = clusters[mcols(clusters)[, "cluster_id"] %in% unique(intron_list[[2]]$cluster_id %>% str_remove("chr"))],
+    uniprot = uniprot
+  )
+
+uniprot_overlap_df <-
+  intron_list[[2]] %>%
+  dplyr::rename(intron_chr = seqnames, intron_start = start, intron_end = end) %>%
+  dplyr::mutate(cluster_id = str_remove(cluster_id, "chr")) %>%
+  dplyr::left_join(uniprot_features %>%
+    dplyr::select(contains("feature"), contains("intron"), cluster_id) %>%
+    dplyr::ungroup() %>%
+    # # Remove chains as these typically signify an entire protein, as opposed to specific sections of the protein
+    # dplyr::filter(feature_category != "chain") %>%
+    dplyr::group_by(intron_chr, intron_start, intron_end, cluster_id) %>%
+    dplyr::summarise(
+      feature_category = str_c(feature_category, collapse = " / "),
+      feature_name = str_c(feature_name, collapse = " / ")
+    ),
+  by = c("intron_chr", "intron_start", "intron_end", "cluster_id")
+  ) %>%
+  dplyr::mutate(overlapping_protein_feature = case_when(
+    is.na(feature_name) ~ FALSE,
+    TRUE ~ TRUE
+  )) %>%
+  dplyr::group_by(comparison, junc_cat, overlapping_protein_feature) %>%
+  dplyr::summarise(n = n()) %>%
+  dplyr::filter(junc_cat != "ambig_gene") %>%
+  dplyr::mutate(prop = n / sum(n) * 100) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(junc_cat = junc_cat %>%
+    str_replace("novel_combo", "novel_combination") %>%
+    str_replace_all("_", " ") %>%
+    str_to_sentence() %>%
+    fct_relevel(., c("Annotated", "Novel exon skip", "Novel combination", "Novel acceptor", "Novel donor", "None")))
+
+uniprot_overlap_df %>%
+  dplyr::filter(overlapping_protein_feature == TRUE) %>%
+  ggplot(aes(x = fct_reorder(.f = junc_cat, .x = prop, .fun = median, .desc = T), y = prop, fill = junc_cat)) +
+  geom_boxplot(outlier.alpha = 0) +
+  ggbeeswarm::geom_beeswarm(priority = "density", shape = 21, alpha = 0.5) +
+  labs(x = "", y = "Proportion of DS introns (within a cateogory)\noverlapping a UniProt protein feature (% per comparison)", fill = "Splicing event") +
+  scale_fill_manual(values = c("#3C5488", "#4DBBD5", "#F3E361", "#E64B35", "#00A087", "grey")) +
+  guides(fill = guide_legend(nrow = 1)) +
+  coord_cartesian(ylim = c(0, 100)) +
+  theme_rhr +
+  theme(
+    legend.position = "none",
+    legend.key.size = unit(0.4, "cm"),
+    axis.text.x = element_text(angle = 45, vjust = 1)
+  )
+
+```
+        
+# Session Info
+```{r}
+sessionInfo()
+```

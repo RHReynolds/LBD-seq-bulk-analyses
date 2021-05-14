@@ -1,0 +1,2328 @@
+---
+title: "Comparing junction and cluster definitions between own data and SRP058181"
+author: 
+- name: "Regina H. Reynolds"
+  affiliation: UCL
+output: 
+  bookdown::html_document2:
+    figure_caption: yes
+    code_folding: hide
+    theme: paper
+    highlight: kate
+    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+
+library(clusterProfiler)
+library(data.table)
+library(devtools)
+library(doParallel)
+library(foreach)
+library(gprofiler2)
+library(ggforce)
+library(ggpubr)
+library(ggsci)
+library(tidyverse)
+library(readxl)
+library(rtracklayer)
+library(UpSetR)
+devtools::load_all("/home/rreynolds/packages/dasper/")
+devtools::load_all("/home/rreynolds/packages/EWCE/")
+devtools::load_all("/home/rreynolds/projects/MarkerGenes/")
+
+# Theme
+theme_rhr <-  theme_bw(base_family = "Helvetica") + 
+  theme(panel.grid.major.x = element_blank(),
+        legend.position = "right",
+        strip.text = element_text(size = 7),
+        axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+        axis.text.y = element_text(size = 7),
+        axis.title.y = element_text(vjust = 0.6),
+        axis.title = element_text(size = 10),
+        panel.spacing = unit(0.1, "lines"))
+
+knitr::opts_chunk$set(echo = T, warning = F, message= F)
+```
+
+> Aims: to determine overlap of junctions and clusters derived from our own data and SRP058181 
+
+# File paths for workflow
+
+```{r file-paths, echo = T}
+
+source(here::here("R", "file_paths.R"))
+
+```
+
+# Importing cluster definitions
+```{r, eval = F, class.source='fold-show'}
+
+source(here::here("R", "convert_leafcutter.R"))
+
+clu <- 
+  setNames(
+    list(
+      fread(
+        file.path(
+          path_to_results,
+          "leafcutter/intron_clustering/tissue_polyA_test_diseasegroups_perind_numers.counts.gz"
+        )
+      ), 
+      fread(
+        file.path(
+          path_to_results,
+          "SRP058181/leafcutter/intron_clustering/test_diseasegroups_perind_numers.counts.gz"
+        )
+      )
+    ),
+    c("own", "SRP058181")
+  ) %>% 
+  lapply(., function(x){
+    x %>% 
+      dplyr::rename(intron = V1) %>% 
+      convert_leafcutter(leafcutter_results = ., 
+                         use_strand = TRUE) %>%
+      dasper::annotate_junc_ref(junc_metadata = .,
+                                gtf = path_to_ref_gtf)
+  })
+
+saveRDS(
+  clu$own, 
+  file = 
+    file.path(
+      path_to_results,
+      "leafcutter/intron_clustering/tissue_polyA_all_clusters_gtfannotated.Rds"
+    )
+)
+saveRDS(
+  clu$SRP058181, 
+  file = 
+    file.path(
+      path_to_results,
+      "SRP058181/leafcutter/intron_clustering/SRP058181_all_clusters_gtfannotated.Rds"
+    )
+)
+
+```
+
+- Run quick QC check that majority of clusters are annotated.
+```{r}
+
+# Import annotated clusters
+clu <- 
+  setNames(
+    list(
+      readRDS(
+        file.path(
+          path_to_results, 
+          "leafcutter/intron_clustering/tissue_polyA_all_clusters_gtfannotated.Rds"
+        )
+      ), 
+      readRDS(
+        file.path(
+          path_to_results,
+          "SRP058181/leafcutter/intron_clustering/SRP058181_all_clusters_gtfannotated.Rds"
+        )
+      )
+    ),
+    c("own", "SRP058181")
+  )
+
+# Check that majority of clu are annotated
+clu %>%
+  lapply(., function(x){
+    
+    x %>% 
+      as.data.frame() %>% 
+      dplyr::group_by(junc_cat) %>% 
+      dplyr::summarise(n = n()) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::mutate(prop = n/sum(n)) %>% 
+      dplyr::arrange(-prop)
+    
+  })
+
+
+```
+
+# Conceptual overview of the analysis
+![](https://www.lucidchart.com/publicSegments/view/6fd79ab0-5df4-4b7b-8417-7be97b00e986/image.png)
+
+> Final analysis included in paper: cluster-level overlaps using differentially spliced clusters and the "exact match" definition (most stringent, but also makes the most sense)
+
+# Junction-level overlaps: all junctions
+
+## Intersection
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$SRP058181,
+                              subject = clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions found in own data: ", length(clu$own)))
+print(str_c("Total number of junctions found in SRP058181: ", length(clu$SRP058181)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlap from smaller SRP058181 dataset into larger
+print(str_c("Percentage overlap from smaller SRP058181 dataset into larger: ", 
+            c((overlapped_junctions %>% queryHits() %>% unique() %>% length())/(clu$SRP058181 %>% length()) * 100)))
+
+# Percentage overlap from larger own data into smaller SRP058181
+print(str_c("Percentage overlap from larger own data into smaller SRP058181: ", 
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(clu$own %>% length()) * 100)))
+
+
+```
+
+- As expected, overlap of smaller dataset into larger dataset is greater than the opposite away around.
+
+## Intersections by annotation type
+```{r, fig.cap = "Overlap of junctions within Leafcutter-defined intron clusters from our own dataset into the recount dataset, SRP058181, and vice-versa."}
+
+plot <- 
+  clu$SRP058181[queryHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(clu$SRP058181)) %>% 
+  dplyr::mutate(overlap = "SRP058181 into own data") %>% 
+  dplyr::bind_rows(clu$own[subjectHits(overlapped_junctions)] %>% 
+                     as.data.frame() %>% 
+                     dplyr::group_by(junc_cat) %>% 
+                     dplyr::summarise(n = n(),
+                                      prop_overlap = n/length(clu$own)) %>% 
+                     dplyr::mutate(overlap = "Own data into SRP058181")) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat, alpha = overlap)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap, alpha = overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  # scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  scale_alpha_manual(name = "Direction of overlap",
+                     values = c(1, 0.5)) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+
+plot
+
+# ggsave(plot, 
+#        filename = "/home/rreynolds/projects/Aim2_PDsequencing_wd/figures/Departmental/SRP058181_junction_overlap.tiff",
+#        device = "tiff",
+#        height = 100,
+#        width = 100,
+#        dpi = 200,
+#        units = "mm")
+
+```
+
+- As expected, overlap of annotated is the highest compared to the other annotation types.
+
+# Junction-level overlaps: junctions in differentially spliced clusters
+- Analysis run using:
+    1. Covariate-corrected data
+    2. Covariate and cell-type-corrected data
+    
+## Covariate-corrected data
+- Data corrected for AoD, RIN and sex, in the case of our own data. No correction for sex applied to SRP058181, as all subjects were male.
+```{r}
+
+# Import leafcutter lists
+leafcutter_list <-   
+  setNames(
+    list(
+      readRDS(
+        file.path(
+          path_to_results, 
+          "leafcutter/diff_splicing/allcomparisons_leafcutter_ds_SexRINAoD.Rds"
+        )
+      ), 
+      readRDS(
+        file.path(
+          path_to_results,
+          "SRP058181/leafcutter/diff_splicing/allcomparisons_leafcutter_ds_RINAoD.Rds"
+        )
+      )
+    ),
+    c("own", "SRP058181")
+  )
+
+# Import differentially spliced clusters (no dPSI filter, yet)
+ds <- 
+  leafcutter_list %>%
+  lapply(., function(x){
+    
+    x$significant_clusters_0.05_filter %>% 
+      dplyr::mutate(chr = chr %>% 
+                      str_replace(., "chr", ""),
+                    cluster_id = str_c(chr, ":", cluster)) %>% 
+      dplyr::select(comparison, chr, cluster, cluster_id, everything()) %>% 
+      # Filtering for only those comparisons that are comparable between the two datasets
+      # I.e. Control_vs_PD, Control_vs_PDD, PD_vs_PDD
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD"))
+    
+  })
+
+# Filter by differentially spliced clusters
+ds_clu <- 
+  setNames(list(clu$own[elementMetadata(clu$own)[, "cluster_id"] %in% 
+                          c(ds$own$cluster_id %>% unique())],
+                clu$SRP058181[elementMetadata(clu$SRP058181)[, "cluster_id"] %in% 
+                                c(ds$SRP058181$cluster_id %>% unique())]),
+           c("own", "SRP058181"))
+```
+
+### Stringent intersection: junction in clusters differentially spliced in both datasets
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = ds_clu$SRP058181,
+                              subject = ds_clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in own data: ", length(ds_clu$own)))
+print(str_c("Total number of junctions within ds clusters in SRP058181: ", length(ds_clu$SRP058181)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlaps
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from SRP058181 into own data: ", 
+            c((overlapped_junctions %>% queryHits() %>% unique() %>% length())/(ds_clu$SRP058181 %>% length()) * 100)))
+
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from own data into smaller SRP058181: ", 
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$own %>% length()) * 100)))
+
+```
+
+```{r, fig.cap = "Overlap of junctions within differentially spliced intron clusters from our own dataset with junctions within differentially spliced intron clusters from the recount dataset, SRP058181, and vice-versa."}
+ds_clu$SRP058181[queryHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$SRP058181)) %>% 
+  dplyr::mutate(overlap = "SRP058181 into own data") %>% 
+  dplyr::bind_rows(ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+                     as.data.frame() %>% 
+                     dplyr::group_by(junc_cat) %>% 
+                     dplyr::summarise(n = n(),
+                                      prop_overlap = n/length(ds_clu$own)) %>% 
+                     dplyr::mutate(overlap = "Own data into SRP058181")) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat, alpha = overlap)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap, alpha = overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  # scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  scale_alpha_manual(name = "Direction of overlap",
+                     values = c(1, 0.5)) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+```
+
+- Validation of differential splicing is very low across both datasets, but particularly when looking at the overlap between our own data and SRP058181. 
+- This is in large part driven by the difference in the total number of junctions found within differentially spliced introns in each dataset (own data: `r length(ds_clu$own)`; SRP058181: `r length(ds_clu$SRP058181)`; fold change difference = own/SRP058181 = `r length(ds_clu$own)/length(ds_clu$SRP058181)`; overlapping junctions: `r length(overlapped_junctions)`). 
+- By comparison, the total number of junctions in each is not so different (own data: `r  length(clu$own)`; SRP058181: `r length(clu$SRP058181)`; fold change difference = own/SRP058181 = `r length(clu$own)/length(clu$SRP058181)`).
+
+#### Overlap with genes
+- So how many genes and what genes does this amount to?
+```{r, class.source='fold-show'}
+
+# Number of genes
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  length()
+
+# Gene names
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+
+```
+
+##### Overlap with PD genes
+- And do any of these genes overlap PD-implicated genes?
+```{r}
+
+# Read in PD genes
+PD_genes <- 
+  setNames(vector(mode = "list", length = 2),
+                     c("mendelian", "sporadic"))
+
+PD_genes$mendelian <- 
+  read_delim(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/20191128_GE_ParkinsonDiseaseComplexParkinsonism_greengenes.tsv"
+    ),
+    delim = "\t"
+  ) %>% 
+  dplyr::rename(Gene = `Gene Symbol`)
+PD_genes$sporadic <- 
+  read_excel(
+    file.path(
+      path_to_raw_data,
+      "misc/PD_risk_genes/TableS6_Complete_summary_statistics_for_QTL_Mendelian_randomization.xlsx"
+    )
+  ) %>% 
+  dplyr::filter(`Pass Bonferroni` == "pass")
+
+# Check for overlaps
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::filter(gene_name_junc %in% unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene))) %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+
+```
+
+##### Baseline overlap with PD genes
+- As a baseline, it's worth establishing the level of overlap in each dataset independently.
+- Can do this at a cluster level by:
+    - Constructing contingency table using clusters that were successfully tested of:
+        1. Whether cluster is differentially spliced.
+        2. Whether cluster overlaps a PD implicated gene.
+- Differential splicing in this case includes:
+    - Clusters found differentially spliced in any comparison (Control_vs_PD, Control_vs_PDD or PD_vs_PDD) that pass FDR < 0.05.
+```{r}
+
+# Construct contingency table of differential splicing
+# Extract cluster_significance from corresponding leafcutter lists
+clu_significance <- 
+  leafcutter_list%>%
+  lapply(., function(x){
+    
+    x$cluster_significance %>% 
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD"),
+                    !str_detect(genes, ",")) %>% 
+      dplyr::mutate(cluster_id = str_replace(cluster, "chr", "")) %>% 
+      dplyr::select(comparison, cluster_id, everything(), -cluster)
+    
+  })
+
+cont_table <- setNames(vector(mode = "list", length = length(clu)),
+                       names(clu))
+
+for(i in 1:length(clu)){
+  
+  cont_table[[i]] <- mcols(clu[[i]])[c("cluster_id", "gene_name_junc")] %>% 
+    as_tibble() %>% 
+    dplyr::filter(cluster_id %in% c(clu_significance[[names(clu[i])]] %>%
+                                                     dplyr::filter(status == "Success") %>%
+                                                     .[["cluster_id"]] %>%
+                                                     unique())) %>% 
+    tidyr::unnest(gene_name_junc) %>% 
+    dplyr::distinct(cluster_id, gene_name_junc) %>% 
+    dplyr::group_by(cluster_id) %>% 
+    dplyr::filter(n() <= 1) %>% 
+    dplyr::mutate(ds = case_when(cluster_id %in% c(clu_significance[[names(clu[i])]] %>%
+                                                     dplyr::filter(p.adjust < 0.05) %>%
+                                                     .[["cluster_id"]] %>%
+                                                     unique()) ~ "yes",
+                                 TRUE~ "no"),
+                  PD_gene = case_when(gene_name_junc %in% 
+                                        unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene)) ~ "yes",
+                                      TRUE ~ "no")) %>% 
+    with(., table(ds, PD_gene, dnn = c("Differentially spliced?", "Overlapping PD gene?")))
+  
+}
+
+cont_table
+
+# Fisher's exact test
+cont_table %>% 
+  lapply(., function(x) x %>% fisher.test())
+
+```
+- With the Fisher's exact test we are attempting to answer the question: *If there was no association between differential splicing of a cluster and whether the cluster overlaps a PD gene, what is the chance that random sampling would result in the association observed?*
+- For our own covariate-corrected data, the p-value < 0.05, suggesting that the chances of observing this contingency table, and by extension the overlap between differential splicing and PD genes, by random chance is very small. Arguably, this is driven by the high overlap of no/no.
+- For the covariate-corrected SRP058181, no evidence of association.
+
+#### Correlation of dPSI estimates in junctions found within differentially spliced clusters across both datasets
+```{r}
+
+ds_overlap <- ds$own %>% 
+  dplyr::filter(cluster_id %in% c(ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+                                    as.data.frame() %>% 
+                                    .[["cluster_id"]] %>% 
+                                    unique())) %>% 
+  dplyr::select(chr, start, end, comparison, cluster_id, loglr, df, Control, PD, PDD, deltapsi, direction_of_effect) %>% 
+  dplyr::full_join(ds$SRP058181 %>% 
+                     dplyr::filter(cluster_id %in% c(ds_clu$SRP058181[queryHits(overlapped_junctions)] %>% 
+                                                       as.data.frame() %>% 
+                                                       .[["cluster_id"]] %>% 
+                                                       unique())) %>% 
+                     dplyr::select(chr, start, end, comparison, cluster_id, loglr, df, Control, PD, PDD, deltapsi, direction_of_effect),
+                   by = c("comparison", "chr", "start", "end"),
+                   suffix = c(".own", ".SRP058181")) %>% 
+  dplyr::mutate(same_direction_of_effect = case_when(direction_of_effect.own == direction_of_effect.SRP058181 ~ TRUE, 
+                                                     direction_of_effect.own != direction_of_effect.SRP058181 ~ FALSE,
+                                                     TRUE ~ NA)) %>% 
+  dplyr::filter(!is.na(same_direction_of_effect))
+
+ds_overlap %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap') 
+
+```
+
+- What proportion of these overlapping junctions found within the same comparison share the same direction of effect?
+
+```{r}
+
+ds_overlap %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::summarise(n = n(),
+                   same_direction_of_effect = sum(same_direction_of_effect)) %>% 
+  dplyr::mutate(prop = (same_direction_of_effect/n) * 100)
+
+```
+
+- Across pairwise comparisons, between 47-72% of junctions share the same direction of effect. 
+- What is the range of dPSI across these shared junctions?
+
+```{r, fig.cap= "Density plot of absolute delta PSI values for those junctions that (i) overlap between our own data and SRP05181, (ii) are within clusters that are differentially spliced in both datasets across the same comparisons, and (iii) share the same direction of effect."}
+
+ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+```
+
+- And how well do dPSI estimates correlate?
+
+```{r, fig.height = 7, fig.cap = "Scatterplot of absolute delta PSI values for those junctions that (a) overlap between our own data and SRP0518181 and are within clusters that are differentially spliced in both datasets across the same comparisons and (b) share the same direction of effect."}
+a <- ds_overlap %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.025, 0.025), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+b <- ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.025, 0.025), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+ggarrange(a, b,
+          ncol = 1,
+          labels = c("a", "b"))
+  
+```
+
+```{r, class.source='fold-show'}
+
+# Correlation of junctions within ds clusters from same comparison
+ds_overlap %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+# Correlation of junctions within ds clusters from same comparison and with same direction of effect
+ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+```
+
+- From two plots above, two observations can be made. Junctions overlapping clusters that are differentially spliced across both datasets, in the same comparison, and with the same direction of effect:
+    1. Mostly have low dPSI values.
+    2. But they are postively correlated.
+
+### Leniant intersection: junctions in clusters differentially spliced in one dataset
+This section is simply looking to see that junctions found within differentially spliced clusters from one dataset, also validate across in the other dataset (without needing to be differentially spliced in the other, too).
+
+#### SRP058181 into own data
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$own,
+                              subject = ds_clu$SRP058181,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in SRP058181: ", length(ds_clu$SRP058181)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlaps
+print(str_c("Percentage overlap of junctions within differentially spliced clusters from SRP058181 into own data: ",
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$SRP058181 %>% length()) * 100)))
+
+```
+
+```{r, fig.cap = "Overlap of junctions found within differentially spliced clusters from SRP058181 into own data."}
+
+ds_clu$SRP058181[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$SRP058181)) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  # scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+
+```
+
+#### Own data into SRP058181
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$SRP058181,
+                              subject = ds_clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in own data: ", length(ds_clu$own)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlaps
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from own data into smaller SRP058181: ",
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$own %>% length()) * 100)))
+
+```
+
+```{r, fig.cap = "Overlap of junctions found within differentially spliced clusters from our own dataset into the recount dataset, SRP058181."}
+
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$own)) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+
+```
+
+#### Summary
+- Unsurprisingly, we see greater overlap of junctions found within differentially spliced clusters from SRP058181 into our own dataset than the reverse situation. 
+- This is expected, given that we have greater sequencing depth to call junctions in our own data. However, still good to see that 78% of junctions found within differentially spliced clusters in our own data validate in the other dataset.
+
+## Covariate and cell-type-corrected data
+- For our data, this was achieved by incorportating PC axes 1-4 (which correlated with AoD, RIN and cell-type proportions) into the model for differential splicing.
+- For SRP058181, cell-type proportions were included as additional variables in the model for differential splicing.
+
+```{r}
+
+# Import leafcutter lists
+leafcutter_list <-   
+  setNames(
+    list(
+      readRDS(
+        file.path(
+          path_to_results, 
+          "leafcutter/diff_splicing_PCaxes/allcomparisons_leafcutter_ds_PCaxes.Rds")
+      ), 
+      readRDS(
+        file.path(
+          path_to_results, 
+          "SRP058181/leafcutter/diff_splicing_celltype/allcomparisons_leafcutter_ds_celltype.Rds"
+        )
+      )
+    ),
+    c("own", "SRP058181")
+  )
+
+# Import differentially spliced clusters (no dPSI filter, yet)
+ds <- 
+  leafcutter_list %>%
+  lapply(., function(x){
+    
+    x$significant_clusters_0.05_filter %>% 
+      dplyr::mutate(chr = chr %>% 
+                      str_replace(., "chr", ""),
+                    cluster_id = str_c(chr, ":", cluster)) %>% 
+      dplyr::select(comparison, chr, cluster, cluster_id, everything()) %>% 
+      # Filtering for only those comparisons that are comparable between the two datasets
+      # I.e. Control_vs_PD, Control_vs_PDD, PD_vs_PDD
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD"))
+    
+  })
+
+# Filter by differentially spliced clusters
+ds_clu <- 
+  setNames(list(clu$own[elementMetadata(clu$own)[, "cluster_id"] %in% 
+                          c(ds$own$cluster_id %>% unique())],
+                clu$SRP058181[elementMetadata(clu$SRP058181)[, "cluster_id"] %in% 
+                                c(ds$SRP058181$cluster_id %>% unique())]),
+           c("own", "SRP058181"))
+```
+
+### Stringent: differentially spliced in both
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = ds_clu$SRP058181,
+                              subject = ds_clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in own data: ", length(ds_clu$own)))
+print(str_c("Total number of junctions within ds clusters in SRP058181: ", length(ds_clu$SRP058181)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlaps
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from SRP058181 into own data: ", 
+            c((overlapped_junctions %>% queryHits() %>% unique() %>% length())/(ds_clu$SRP058181 %>% length()) * 100)))
+
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from own data into smaller SRP058181: ", 
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$own %>% length()) * 100)))
+
+```
+
+```{r, fig.cap = "Overlap of junctions within differentially spliced intron clusters from our own dataset with junctions within differentially spliced intron clusters from the recount dataset, SRP058181, and vice-versa."}
+ds_clu$SRP058181[queryHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$SRP058181)) %>% 
+  dplyr::mutate(overlap = "SRP058181 into own data") %>% 
+  dplyr::bind_rows(ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+                     as.data.frame() %>% 
+                     dplyr::group_by(junc_cat) %>% 
+                     dplyr::summarise(n = n(),
+                                      prop_overlap = n/length(ds_clu$own)) %>% 
+                     dplyr::mutate(overlap = "Own data into SRP058181")) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat, alpha = overlap)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap, alpha = overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  # scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  scale_alpha_manual(name = "Direction of overlap",
+                     values = c(1, 0.5)) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+```
+
+- While overlap of SRP058181 into our own data has reduced in comparison to when this was done with data corrected only for AoD, RIN (and sex), overlap of our own data into the smaller SRP058181 has increased. 
+- This is in large part driven by changes difference in the total number of junctions found within differentially spliced introns in each dataset (own data: `r length(ds_clu$own)`; SRP058181: `r length(ds_clu$SRP058181)`; fold change difference = own/SRP058181 = `r length(ds_clu$own)/length(ds_clu$SRP058181)`). Compared to data that was only corrected for AoD, RIN (and sex), where the fold change difference between the two datasets was > 5, the difference between the two has decreased significantly. 
+- Furthermore, the number of overlapping junctions once data is cell-type corrected is higher (n = `r length(overlapped_junctions)` junctions) compared to when data is corrected only by AoD and RIN (n = 701). This is clear from the next section, too, where the number of overlapping genes is higher for cell-type-corrected data.
+
+#### Overlap with genes
+- So how many genes and what genes does this amount to?
+```{r, class.source='fold-show'}
+
+# Number of genes
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  length()
+
+# Gene names
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+
+```
+
+##### Overlap with PD genes
+- And do any of these genes overlap PD-implicated genes?
+```{r}
+
+# Check for overlaps
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::filter(gene_name_junc %in% unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene))) %>% 
+  .[["gene_name_junc"]] %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+
+```
+- Worth noting that FBXO7 was also highlighted in the data only corrected for AoD, RIN (and sex).
+
+##### Baseline overlap with PD genes
+- As a baseline, it's worth establishing the level of overlap in each dataset independently.
+- Can do this at a cluster level by:
+    - Constructing contingency table using clusters that were successfully tested of:
+        1. Whether cluster is differentially spliced.
+        2. Whether cluster overlaps a PD implicated gene.
+- Differential splicing in this case includes:
+    - Clusters found differentially spliced in any comparison (Control_vs_PD, Control_vs_PDD or PD_vs_PDD) that pass FDR < 0.05.
+```{r}
+
+# Construct contingency table of differential splicing
+# Extract cluster_significance from corresponding leafcutter lists
+clu_significance <- 
+  leafcutter_list%>%
+  lapply(., function(x){
+    
+    x$cluster_significance %>% 
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD"),
+                    !str_detect(genes, ",")) %>% 
+      dplyr::mutate(cluster_id = str_replace(cluster, "chr", "")) %>% 
+      dplyr::select(comparison, cluster_id, everything(), -cluster)
+    
+  })
+
+cont_table <- setNames(vector(mode = "list", length = length(clu)),
+                       names(clu))
+
+for(i in 1:length(clu)){
+  
+  cont_table[[i]] <- mcols(clu[[i]])[c("cluster_id", "gene_name_junc")] %>% 
+    as_tibble() %>% 
+    dplyr::filter(cluster_id %in% c(clu_significance[[names(clu[i])]] %>%
+                                                     dplyr::filter(status == "Success") %>%
+                                                     .[["cluster_id"]] %>%
+                                                     unique())) %>% 
+    tidyr::unnest(gene_name_junc) %>% 
+    dplyr::distinct(cluster_id, gene_name_junc) %>% 
+    dplyr::group_by(cluster_id) %>% 
+    dplyr::filter(n() <= 1) %>% 
+    dplyr::mutate(ds = case_when(cluster_id %in% c(clu_significance[[names(clu[i])]] %>%
+                                                     dplyr::filter(p.adjust < 0.05) %>%
+                                                     .[["cluster_id"]] %>%
+                                                     unique()) ~ "yes",
+                                 TRUE~ "no"),
+                  PD_gene = case_when(gene_name_junc %in% 
+                                        unique(c(PD_genes$mendelian$Gene, PD_genes$sporadic$Gene)) ~ "yes",
+                                      TRUE ~ "no")) %>% 
+    with(., table(ds, PD_gene, dnn = c("Differentially spliced?", "Overlapping PD gene?")))
+  
+}
+
+cont_table
+
+# Fisher's exact test
+cont_table %>% 
+  lapply(., function(x) x %>% fisher.test())
+
+```
+- With the Fisher's exact test we are attempting to answer the question: *If there was no association between differential splicing of a cluster and whether the cluster overlaps a PD gene, what is the chance that random sampling would result in the association observed?*
+- For both datasets, following correction for cell-type, there is no evidence of an assoication between differential splicing of a cluster and whether the cluster overlaps a PD-associated gene.
+
+#### dPSI estimates in junctions found within differentially spliced clusters across both datasets
+```{r}
+
+ds_overlap <- ds$own %>% 
+  dplyr::filter(cluster_id %in% c(ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+                                    as.data.frame() %>% 
+                                    .[["cluster_id"]] %>% 
+                                    unique())) %>% 
+  dplyr::select(chr, start, end, comparison, cluster_id, loglr, df, Control, PD, PDD, deltapsi, direction_of_effect) %>% 
+  dplyr::full_join(ds$SRP058181 %>% 
+                     dplyr::filter(cluster_id %in% c(ds_clu$SRP058181[queryHits(overlapped_junctions)] %>% 
+                                                       as.data.frame() %>% 
+                                                       .[["cluster_id"]] %>% 
+                                                       unique())) %>% 
+                     dplyr::select(chr, start, end, comparison, cluster_id, loglr, df, Control, PD, PDD, deltapsi, direction_of_effect),
+                   by = c("comparison", "chr", "start", "end"),
+                   suffix = c(".own", ".SRP058181")) %>% 
+  dplyr::mutate(same_direction_of_effect = case_when(direction_of_effect.own == direction_of_effect.SRP058181 ~ TRUE, 
+                                                     direction_of_effect.own != direction_of_effect.SRP058181 ~ FALSE,
+                                                     TRUE ~ NA)) %>% 
+  dplyr::filter(!is.na(same_direction_of_effect))
+
+ds_overlap %>% 
+  DT::datatable(rownames = FALSE,
+                options = list(scrollX = TRUE),
+                class = 'white-space: nowrap') 
+
+```
+
+- What proportion of these overlapping junctions found within the same comparison share the same direction of effect?
+
+```{r}
+
+ds_overlap %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::summarise(n = n(),
+                   same_direction_of_effect = sum(same_direction_of_effect)) %>% 
+  dplyr::mutate(prop = (same_direction_of_effect/n) * 100)
+
+```
+
+- Despite having a higher number of overlapping junctions when correcting for cell-type compared to just AoD/RIN (`r length(overlapped_junctions)` vs 701)), the number (and proportion) of junctions that actually overlap across the same comparison and share the same direction of effect is lower in cell-type-corrected data.  
+- What is the range of dPSI across these shared junctions?
+
+```{r, fig.cap= "Density plot of absolute delta PSI values for those junctions that (i) overlap between our own data and SRP0518181, (ii) are within clusters that are differentially spliced in both datasets across the same comparisons, and (iii) share the same direction of effect."}
+
+ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+```
+
+- And how well do dPSI estimates correlate?
+
+```{r, fig.height = 7, fig.cap = "Scatterplot of absolute delta PSI values for those junctions that (a) overlap between our own data and SRP0518181 and are within clusters that are differentially spliced in both datasets across the same comparisons and (b) share the same direction of effect."}
+a <- ds_overlap %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.025, 0.025), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+b <- ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.025, 0.025), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+ggarrange(a, b,
+          ncol = 1,
+          labels = c("a", "b"))
+  
+```
+
+```{r, class.source='fold-show'}
+
+# Correlation of junctions within ds clusters from same comparison
+ds_overlap %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+# Correlation of junctions within ds clusters from same comparison and with same direction of effect
+ds_overlap %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+```
+
+- From two plots above, following observations can be made. 
+    - Junctions overlapping clusters that are differentially spliced across both datasets, in the same comparison, and with the same direction of effect:
+        - Mostly have low dPSI values, although SRP058181 junctions appear to have a higher density of junctions with dPSI > 0.1.
+        - Positively correlated.
+    - If using only junctions overlapping the same comparison, it is clear that there is no real correlation between junctions -- in large part driven by the sheer number of junctions that share a comparison, but not the same direction of effect.
+
+### Leniant: differentially spliced in one dataset
+This section is simply looking to see that junctions found within differentially spliced clusters from one dataset, also validate across in the other dataset (without needing to be differentially spliced in the other, too).
+
+#### SRP058181 into own data
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$own,
+                              subject = ds_clu$SRP058181,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in SRP058181: ", length(ds_clu$SRP058181)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlaps
+print(str_c("Percentage overlap of junctions within differentially spliced clusters from SRP058181 into own data: ",
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$SRP058181 %>% length()) * 100)))
+
+
+```
+
+```{r, fig.cap = "Overlap of junctions found within differentially spliced clusters from SRP058181 into own data."}
+
+ds_clu$SRP058181[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$SRP058181)) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  # scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+
+```
+
+#### Own data into SRP058181
+```{r}
+
+# Find junctions that overlap 
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$SRP058181,
+                              subject = ds_clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Absolute numbers
+print(str_c("Total number of junctions within ds clusters in own data: ", length(ds_clu$own)))
+print(str_c("Number of intersecting junctions: ", c(overlapped_junctions %>% subjectHits() %>% unique() %>% length())))
+
+# Percentage overlap of junctions within differentially spliced cluster from own data into smaller SRP058181
+print(str_c("Percentage overlap of junctions within differentially spliced cluster from own data into smaller SRP058181: ",
+            c((overlapped_junctions %>% subjectHits() %>% unique() %>% length())/(ds_clu$own %>% length()) * 100)))
+
+```
+
+```{r, fig.cap = "Overlap of junctions found within differentially spliced clusters from our own dataset into the recount dataset, SRP058181."}
+
+ds_clu$own[subjectHits(overlapped_junctions)] %>% 
+  as.data.frame() %>% 
+  dplyr::group_by(junc_cat) %>% 
+  dplyr::summarise(n = n(),
+                   prop_overlap = n/length(ds_clu$own)) %>% 
+  dplyr::filter(junc_cat != "ambig_gene") %>% 
+  dplyr::mutate(junc_cat = junc_cat %>% factor(levels = c("annotated", "novel_acceptor", "novel_donor", "novel_exon_skip", "novel_combo", "none"))) %>% 
+  # ggplot(aes(x = junc_cat, y = prop_overlap, fill = junc_cat)) + 
+  ggplot(aes(x = junc_cat, y = prop_overlap)) + 
+  geom_col(position = position_dodge2(preserve = "single", padding = 0), colour = "black") +
+  # facet_wrap(vars(overlap)) +
+  labs(x = "", y = "Proportion of overlapping junctions") +
+  scale_fill_manual(values = c(pal_npg(palette = c("nrc"), alpha = 1)(10)[c(4,2,1,3)], "#808080")) +
+  guides(fill = FALSE,
+         alpha=guide_legend(nrow=2,byrow=TRUE)) +
+  theme_rhr +
+  theme(legend.position = "bottom")
+
+```
+
+#### Summary
+- Unsurprisingly, we see greater overlap of junctions found within differentially spliced clusters from SRP058181 into our own dataset than the reverse situation. 
+- This is expected, given that we have greater sequencing depth to call junctions in our own data. 
+- Proportions are also very similar to what we see with data corrected only for AoD and RIN.
+
+# Cluster-level overlaps: all clusters
+
+## Discovery-validation matches
+- **Definition of match:** 100% of junctions in a cluster from the discovery dataset also found in a cluster from the validation dataset (which may/may not contain an equal number of junctions).
+- Strategy:
+    1. Look for overlapping junctions between two datasets.
+    2. Use overlapping junctions to extract the cluster ids from our own data.
+    3. Remove ambiguous clusters i.e. clusters from our own data that overlap more than one cluster from SRP058181.
+    4. Within clusters from own data that overlap a cluster in SRP058181, determine proportion of junctions from total number of junctions in own cluster that overlap. Do the same in the opposite direction i.e. within clusters from SRP058181 that overlap a cluster in own data, determine proportion of junctions from total number of junctions in SRP058181 junction that overlap.
+    5. Plot histogram.
+```{r}
+
+# Find overlapping junctions/clusters
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$SRP058181,
+                              subject = clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Filter by cluster names from overlap
+clu_overlap <- clu$own[subjectHits(overlapped_junctions), "cluster_id"] %>% 
+  as_tibble() %>% 
+  dplyr::inner_join(clu$SRP058181[queryHits(overlapped_junctions), "cluster_id"] %>% 
+                      as_tibble(),
+                    by = c("seqnames", "start", "end", "strand"),
+                    suffix = c(".own", ".SRP058181"))
+
+# Remove clusters from own that overlap more than one cluster in SRP058181
+# I.e. ensure no ambiguous cluster mapping
+ambig_clu <- clu_overlap %>% 
+  dplyr::distinct(cluster_id.own, cluster_id.SRP058181) %>% 
+  dplyr::filter(!is.na(cluster_id.SRP058181)) %>% 
+  dplyr::group_by(cluster_id.own) %>% 
+  dplyr::filter(n() > 1)
+
+# Extract non-ambiguous overlapping clusters
+overlapping_clusters <- clu_overlap %>% 
+  dplyr::filter(!cluster_id.own %in% unique(ambig_clu$cluster_id.own)) %>% 
+  .[["cluster_id.own"]] %>% 
+  unique()
+
+# Absolute numbers
+print(str_c("Number of clusters in own data: ", length(clu$own$cluster_id %>% unique())))
+print(str_c("Number of clusters in SRP058181: ", length(clu$SRP058181$cluster_id %>% unique())))
+print(str_c("Number of overlapping clusters between both datasets: ", length(overlapping_clusters)))
+
+```
+
+```{r}
+# Use intron usage, as unlike clu (leafcutter cluster definitions), this will only include successfully tested clusters
+# "Successful" test means cluster passed necessary minimum filters for differential splicing (i.e. min_samples_per_intron, min_samples_per_group, min_coverage)
+intron_usage <- 
+  leafcutter_list %>%
+  lapply(., function(x){
+    
+    x$intron_usage %>% 
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD")) %>% 
+      tidyr::separate(col = intron, into = c("chr", "start", "end", "cluster"), sep = ":") %>% 
+      tidyr::separate(col = cluster, into = c("clu", "id", "strand"), sep = "_", remove = FALSE) %>% 
+      dplyr::mutate(chr = str_replace(chr, "chr", ""),
+                    cluster_id = str_c(chr, ":", cluster))
+    
+    })
+```
+
+```{r, results = F, eval = F}
+
+# Loop through clusters to determine proportion overlap
+# Run in parallel
+cl <- makeCluster(20)
+
+# Register clusters
+registerDoParallel(cl)
+getDoParWorkers()
+
+clu_prop_overlap <- foreach(i = 1:length(overlapping_clusters),
+                                 .verbose = TRUE,
+                                 .packages = c("tidyverse", "stringr")) %dopar% {
+                                   
+                                   # Determine number of junctions in own cluster
+                                   n_junctions.own <- intron_usage$own %>% 
+                                     dplyr::filter(cluster_id == overlapping_clusters[i]) %>% 
+                                     dplyr::distinct(chr, start, end, strand) %>% 
+                                     nrow()
+                                   
+                                   # Determine number of junctions in overlap
+                                   n_overlap <- clu_overlap %>% 
+                                     dplyr::filter(cluster_id.own == overlapping_clusters[i],
+                                                   !is.na(cluster_id.SRP058181)) %>% 
+                                     nrow()
+                                   
+                                   # Determine number of junctions in SRP058181 cluster
+                                   cluster_id.SRP058181 <- clu_overlap %>% 
+                                     dplyr::filter(cluster_id.own == overlapping_clusters[i],
+                                                   !is.na(cluster_id.SRP058181)) %>% 
+                                     .[["cluster_id.SRP058181"]] %>% 
+                                     unique()
+                                   
+                                   n_junctions.SRP058181 <- intron_usage$SRP058181 %>% 
+                                     dplyr::filter(cluster_id == cluster_id.SRP058181) %>% 
+                                     dplyr::distinct(chr, start, end, strand) %>% 
+                                     nrow()
+                                   
+                                   df <- tibble(cluster_id.own = overlapping_clusters[i],
+                                                n_junctions.own = n_junctions.own,
+                                                cluster_id.SRP058181 = cluster_id.SRP058181,
+                                                n_junctions.SRP058181 = n_junctions.SRP058181,
+                                                n_overlap = n_overlap,
+                                                prop_overlap.own = (n_overlap/n_junctions.own)*100,
+                                                prop_overlap.SRP058181 = (n_overlap/n_junctions.SRP058181)*100)
+                                   
+                                   
+                                   df
+                                 }
+
+# Stop cluster
+stopCluster(cl = cl)
+
+clu_prop_overlap <- clu_prop_overlap %>% 
+  qdapTools::list_df2df() %>% 
+  dplyr::select(-X1)
+
+saveRDS(
+  clu_prop_overlap, 
+  file.path(
+    path_to_results,
+    "leafcutter/diff_splicing_PCaxes/cluster_overlap_with_SRP058181.Rds"
+  )
+)
+
+```
+
+```{r, fig.cap = "Histogram of the proportion overlap between *all* clusters derived from own data that are also found in SRP058181, and vice versa."}
+
+clu_prop_overlap <- 
+  readRDS(
+    file.path(
+      path_to_results,
+      "leafcutter/diff_splicing_PCaxes/cluster_overlap_with_SRP058181.Rds"
+    )
+  )
+
+clu_prop_overlap %>% 
+  tidyr::gather(key = "overlap", value = "prop_overlap", contains("prop_overlap")) %>% 
+  dplyr::mutate(overlap = case_when(overlap == "prop_overlap.own" ~ "own --> SRP058181",
+                                    overlap == "prop_overlap.SRP058181" ~ "SRP058181 --> own")) %>% 
+  ggplot(aes(x = prop_overlap, fill = overlap)) +
+  geom_histogram(binwidth = 5, alpha = 0.5, colour = "black") +
+  facet_wrap(~overlap) +
+  labs(x = "Proportion overlap of cluster from discovery dataset into validation dataset") +
+  theme_rhr +
+  theme(legend.position = "none")
+
+```
+- Own --> SRP058181
+    - Found that `r round((clu_prop_overlap %>% dplyr::filter(prop_overlap.own == 100) %>% nrow())/nrow(clu_prop_overlap) * 100, digits = 1)`% of clusters overlapping between own data and SRP058181 share 100% of their junctions, *as defined by their cluster definition in our own data*.
+- SRP058181 --> Own
+    - Found that `r round((clu_prop_overlap %>% dplyr::filter(prop_overlap.SRP058181 == 100) %>% nrow())/nrow(clu_prop_overlap) * 100, digits = 1)`% of clusters overlapping between own data and SRP058181 share 100% of their junctions, *as defined by their cluster definition in SRP058181*.
+
+## Exact match
+- **Definition of match:** clusters that intersect between datasets contain the same number of junctions, with matching donor and acceptor positions.
+- Strategy:
+    1. Use calculated cluster overlap proportions. Filter for rows where proportion overlap is 100% irrespective of which dataset was used to define the cluster.
+    2. Construct contigency table of differentially spliced/not differentially spliced for exact matches. To do this requires extracting `cluster_significance` dataframe for both datasets, which contains the necessary information re. cluster-level differential splicing.
+    3. Fisher's exact test.
+
+### Number of "exactly" matching clusters
+```{r}
+
+# Extract cluster_significance from corresponding leafcutter lists
+clu_significance <- 
+  leafcutter_list%>%
+  lapply(., function(x){
+    
+    x$cluster_significance %>% 
+      dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD"),
+                    !str_detect(genes, ",")) %>% 
+      dplyr::mutate(cluster_id = str_replace(cluster, "chr", "")) %>% 
+      dplyr::select(comparison, cluster_id, everything(), -cluster)
+    
+  })
+
+# Filter cluster overlap proportions to determine clusters that "exactly" match
+clu_prop_overlap_exact <- clu_prop_overlap %>% 
+  dplyr::filter(prop_overlap.own != Inf,
+                prop_overlap.own >= 100, 
+                prop_overlap.own == prop_overlap.SRP058181)
+
+# Filter clu_overlap to include only overlapping clusters that "exactly" match
+clu_overlap_exact <- clu_overlap %>% 
+  dplyr::distinct(cluster_id.own, cluster_id.SRP058181) %>% 
+  dplyr::filter(cluster_id.own %in% clu_prop_overlap_exact$cluster_id.own)
+
+print(str_c("Number of clusters that overlap exactly between both datasets: ", length(clu_overlap_exact$cluster_id.own %>% unique())))
+
+```
+
+### Contingency table and fisher's exact test
+- Differential splicing in this case includes:
+    - Clusters found differentially spliced in any comparison (Control_vs_PD, Control_vs_PDD or PD_vs_PDD)
+    - Clusters that pass FDR < 0.05 in both datasets (i.e. this is quite stringent)
+```{r}
+# Construct contingency table of differential splicing
+cont_table <- clu_overlap_exact %>% 
+  dplyr::mutate(ds.own = fct_relevel(case_when(cluster_id.own %in% c(clu_significance$own %>%
+                                                                       dplyr::filter(p.adjust < 0.05) %>%
+                                                                       .[["cluster_id"]] %>%
+                                                                       unique()) ~ TRUE,
+                                               TRUE~ FALSE) %>% as.factor(),
+                                     levels = c("TRUE", "FALSE")),
+                ds.SRP058181 = fct_relevel(case_when(cluster_id.SRP058181 %in% c(clu_significance$SRP058181 %>%
+                                                                                   dplyr::filter(p.adjust < 0.05) %>%
+                                                                                   .[["cluster_id"]] %>%
+                                                                                   unique()) ~ TRUE,
+                                                     TRUE~ FALSE) %>% as.factor(),
+                                           levels = c("TRUE", "FALSE"))) %>% 
+  with(., table(ds.SRP058181, ds.own, dnn = c("Differentially spliced in SRP058181?", "Differentially spliced in own data?")))
+
+cont_table
+
+# Fisher's exact test
+cont_table %>% 
+  fisher.test()
+
+```
+- With the Fisher's exact test we are attempting to answer the question: *If there was no association between differential splicing in our own data and differential splicing in SRP058181, what is the chance that random sampling would result in the association observed?*
+- Thus, significant p-value suggests to us that chances of observing this contingency table, and by extension the overlap between datasets, by random chance is very small.
+- Interpretation of odds ratio: 
+    - OR = odds(differentially spliced in SRP|differentially spliced in own) / odds(differentially spliced in SRP|*not* differentially spliced in own)
+    - The odds of a cluster being differentially spliced in SRP058181 conditional upon the cluster being differentially spliced in our own data is 1.42 times that for a cluster that is not differentially spliced in our own data.
+
+### Contingency table and fisher's exact test (using nominal p-value in SRP058181)
+- Differential splicing in this case includes:
+    - Clusters found differentially spliced in any comparison (Control_vs_PD, Control_vs_PDD or PD_vs_PDD)
+    - Clusters that pass FDR < 0.05 in bulk-tissue RNA-seq and p < 0.05 in SRP058181 
+```{r}
+# Construct contingency table of differential splicing
+cont_table <- clu_overlap_exact %>% 
+  dplyr::mutate(ds.own = fct_relevel(case_when(cluster_id.own %in% c(clu_significance$own %>%
+                                                                       dplyr::filter(p.adjust < 0.05) %>%
+                                                                       .[["cluster_id"]] %>%
+                                                                       unique()) ~ TRUE,
+                                               TRUE~ FALSE) %>% as.factor(),
+                                     levels = c("TRUE", "FALSE")),
+                ds.SRP058181 = fct_relevel(case_when(cluster_id.SRP058181 %in% c(clu_significance$SRP058181 %>%
+                                                                                   dplyr::filter(p < 0.05) %>%
+                                                                                   .[["cluster_id"]] %>%
+                                                                                   unique()) ~ TRUE,
+                                                     TRUE~ FALSE) %>% as.factor(),
+                                           levels = c("TRUE", "FALSE"))) %>% 
+  with(., table(ds.SRP058181, ds.own, dnn = c("Differentially spliced in SRP058181?", "Differentially spliced in own data?")))
+
+cont_table
+
+# Fisher's exact test
+cont_table %>% 
+  fisher.test()
+
+```
+- With the Fisher's exact test we are attempting to answer the question: *If there was no association between differential splicing in our own data and differential splicing in SRP058181, what is the chance that random sampling would result in the association observed?*
+- Thus, significant p-value suggests to us that chances of observing this contingency table, and by extension the overlap between datasets, by random chance is very small.
+- Interpretation of odds ratio: 
+    - OR = odds(differentially spliced in SRP|differentially spliced in own) / odds(differentially spliced in SRP|*not* differentially spliced in own)
+    - The odds of a cluster being differentially spliced in SRP058181 conditional upon the cluster being differentially spliced in our own data is 1.22 times that for a cluster that is not differentially spliced in our own data.
+
+    
+# Cluster-level overlaps: differentially spliced clusters
+
+## Discovery-validation matches
+- Overall strategy:
+    1. Find the set of intersecting junctions between both datasets --> these can be used to define which clusters from our own data could be detected in SRP058181.
+    2. Validation will depend on X % of junctions found within a cluster from our own data being found in a cluster from SRP058181.
+    3. Those clusters that "validate" and are found differentially spliced in our own data can then be tested for differential splicing in SRP058181 i.e. adjust p-value within comparison to reflect smaller number of tests.
+- **Only cell-type-corrected data used.**
+
+### Intersecting clusters
+- Strategy:
+    1. Look for overlapping junctions between two datasets, using:
+        a. Clusters differentially spliced in our own data.
+        b. All clusters from SRP058181.
+    2. Use overlapping junctions to extract the cluster ids from our own data.
+    3. Remove ambiguous clusters i.e. clusters from our own data that overlap more than one cluster from SRP058181.
+    4. Within clusters from own data that overlap a cluster in SRP058181, determine proportion of junctions from total number of junctions in own cluster that overlap. Plot histogram.
+```{r, fig.cap = "Histogram of the proportion overlap between *differentially spliced* clusters derived from own data that are also found in SRP058181."}
+
+# Find overlapping junctions/clusters
+overlapped_junctions <- 
+  GenomicRanges::findOverlaps(query = clu$SRP058181,
+                              subject = ds_clu$own,
+                              ignore.strand = F, 
+                              type = "equal")
+
+# Filter by cluster names from overlap
+clu_overlap_ds <- 
+  ds_clu$own[subjectHits(overlapped_junctions), "cluster_id"] %>% 
+  as_tibble() %>% 
+  dplyr::inner_join(clu$SRP058181[queryHits(overlapped_junctions), "cluster_id"] %>% 
+              as_tibble(),
+              by = c("seqnames", "start", "end", "strand"),
+              suffix = c(".own", ".SRP058181"))
+
+# Filter generated clu_prop_overlap for cluster ids from clu_overlap_ds
+# clu_prop_overlap already filtered for ambiguous clusters
+# Generate geom_density
+clu_prop_overlap %>% 
+  dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own) %>% 
+  tidyr::gather(key = "overlap", value = "prop_overlap", contains("prop_overlap")) %>% 
+  dplyr::mutate(overlap = case_when(overlap == "prop_overlap.own" ~ "ds own --> all SRP058181",
+                                    overlap == "prop_overlap.SRP058181" ~ "all SRP058181 --> ds own")) %>% 
+  ggplot(aes(x = prop_overlap, fill = overlap)) +
+  geom_histogram(binwidth = 5, alpha = 0.5, colour = "black") +
+  facet_wrap(~overlap) +
+  labs(x = "Proportion overlap of cluster from discovery dataset into validation dataset") +
+  theme_rhr +
+  theme(legend.position = "none")
+
+```
+- Differentially spliced own --> all SRP058181
+    - Found that `r round((clu_prop_overlap %>% dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own, prop_overlap.own == 100) %>% nrow())/(clu_prop_overlap %>% dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own) %>% nrow) * 100, digits = 1)`% clusters overlapping between own data (filtered to include only differentially spliced clusters) and SRP058181 share 100% of their junctions, *as defined by their cluster definition in our own data*.
+- All SRP058181 --> differentially spliced own
+    - Found that `r round((clu_prop_overlap %>% dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own, prop_overlap.SRP058181 == 100) %>% nrow())/(clu_prop_overlap %>% dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own) %>% nrow) * 100, digits = 1)`% of clusters overlapping between own data (filtered to include only differentially spliced clusters) and SRP058181 share 100% of their junctions, *as defined by their cluster definition in SRP058181*.
+- This is similar to what we saw when using all clusters.
+- Given that proportion is so large, will use those clusters with 100% overlap. 
+
+### FDR-correction of intersecting SRP058181 clusters
+- Strategy:
+    1. Create dataframe (`overlapping_clusters`) with clusters from own data that:
+        a. Have a 100% overlap i.e. all junctions within cluster were found within a cluster from SRP058181. 
+        b. AND were found differentially spliced.
+    2. For SRP058181, filter `cluster_significance` dataframe for those clusters from `overlapping_clusters`. Then, for each pairwise comparison, perform FDR-correction using the smaller set of overlapping clusters from SRP058181.
+    3. For both datasets, merge junction-level data (`intron_usage`) with cluster-level data (`cluster_significance`) and filter for only those cluster ids in `overlapping_clusters`. Once this is done, merge output from each dataset (ensuring to filter SRP058181 for only those clusters that are now significant following FDR-correction).
+    4. Perform a full join of the two lists by: comparison, chromosome, start and end site of junction, overlapping genes. By joining using comparison, we ensure that we are only keeping those junctions that were found differentially spliced in the *SAME* comparison in *one or both* datasets.
+    5. Add a column `same_direction_of_effect`. This column evaluates whether junctions that were found differentially spliced in the *same* comparison across *one or both* datasets share the *same* direction of effect.
+```{r}
+
+# Filter for overlapping clusters with 100% overlap from own data into SRP058181
+# AND that are differentially spliced in own data
+overlapping_clusters <- 
+  clu_prop_overlap %>% 
+  dplyr::filter(prop_overlap.own != Inf,
+                prop_overlap.own >= 100,
+                cluster_id.own %in% clu_overlap_ds$cluster_id.own
+                )
+
+print(str_c("Number of overlapping clusters differentially spliced in SRP058181, prior to FDR-correction within smaller set: ",
+            clu_significance$SRP058181 %>% 
+              dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, 
+                            status == "Success",
+                            p.adjust < 0.05) %>% 
+              dplyr::distinct(cluster_id) %>% 
+              nrow()))
+
+# Correct each comparison using fdr on smaller set
+clu_significance_fdr <- clu_significance
+
+clu_significance_fdr$SRP058181 <-
+  clu_significance$SRP058181 %>% 
+  dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, status == "Success") %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::mutate(p.adjust = p.adjust(p, method = "fdr"))
+
+print(str_c("Number of overlapping clusters differentially spliced in SRP058181, following FDR-correction within smaller set: ",
+            clu_significance_fdr$SRP058181 %>% 
+              dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, 
+                            status == "Success",
+                            p.adjust < 0.05) %>% 
+              dplyr::distinct(cluster_id) %>% 
+              nrow()))
+
+# Create list with dataframes from each dataset containing merged intron usage and cluster significance only for overlapping_clusters
+clu_val <- vector(mode = "list", length = 2)
+
+for(i in 1:length(clu_val)){
+  
+  # Get name of each dataset
+  name <- names(intron_usage)[i]
+  
+  # Column name for cluster ids in each dataset
+  col_name <- str_c("cluster_id.", name)
+  
+  # Join intron usage (i.e. junction-level data) with cluster significance (cluster-level significance)
+  # And filter for only those clusters found within overlapping_clusters
+  clu_val[[i]] <- intron_usage[[name]] %>% 
+    # Filter for appropriate comparisons
+    dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD")) %>% 
+    dplyr::inner_join(clu_significance_fdr[[name]]) %>% 
+    dplyr::select(chr, start, end, comparison, cluster_id, loglr, p.adjust, df, Control, PD, PDD, deltapsi, genes) %>% 
+    # Add direction of effect
+    dplyr::mutate(direction_of_effect = case_when(deltapsi > 0 ~ "upregulated",
+                                                  deltapsi < 0 ~ "downregulated",
+                                                  deltapsi == 0 ~ "no_change")) %>% 
+    dplyr::filter(cluster_id %in% c(overlapping_clusters %>% 
+                                                  .[[col_name]])) 
+  names(clu_val)[i] <- name
+  
+}
+
+# Join lists together
+# Add additional column evaluating for those junctions shared between comparisons whether they share direction of effect 
+# Remove any junctions that are not shared between comparisons
+ds_val <- clu_val$own %>% 
+  full_join(clu_val$SRP058181 %>% 
+              dplyr::filter(p.adjust < 0.05), 
+            by = c("comparison", "chr", "start", "end", "genes"),
+            suffix = c(".own", ".SRP058181")) %>% 
+  dplyr::mutate(same_direction_of_effect = case_when(direction_of_effect.own == direction_of_effect.SRP058181 ~ TRUE, 
+                                                          direction_of_effect.own != direction_of_effect.SRP058181 ~ FALSE,
+                                                    TRUE ~ NA))
+
+```
+
+### Correlating dPSI estimates
+- If we now return to the junction level... from the set of junctions that are (i) found differentially spliced in one or both datasets and (ii) appear in the same comparison in both datasets, what proportion of these share the same direction of effect? And would we expect to see this by random chance?
+- Strategy:
+    - Construct contingency tables, with:
+        1. Differentially spliced in both data sets?
+        2. Same direction of effect (conditional on same comparison)?
+    - Run Fisher's exact test.
+
+```{r}
+
+cont_table <- 
+  ds_val %>% 
+  dplyr::mutate(same_direction_of_effect = fct_relevel(as.factor(same_direction_of_effect),
+                                                       levels = c("TRUE", "FALSE")),
+                ds_both = fct_relevel(case_when(p.adjust.own < 0.05 & p.adjust.SRP058181 < 0.05~ TRUE,
+                                                TRUE~ FALSE) %>% as.factor(),
+                                      levels = c("TRUE", "FALSE"))) %>% 
+  dplyr::filter(!is.na(same_direction_of_effect)) %>% 
+  with(., table(same_direction_of_effect, ds_both,  
+                dnn = c("Same direction of effect?", "Differentially spliced (same comparison) in both datasets?")))
+
+cont_table
+
+cont_table %>% 
+  fisher.test()
+
+```
+- No association between whether junctions within clusters found differentially spliced in both datasets across the same comparison also share the same direction of effect.
+
+```{r, fig.cap= "Density plot of absolute delta PSI values for (a) those junctions that (i) overlap between our own data and SRP0518181, (ii) are within clusters that are differentially spliced in *one or both* datasets across the same comparisons, and (iii) share the same direction of effect and (b) all junctions found within 'validated' clusters that contain junctions shared as described in (a)."}
+
+a <- ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  coord_cartesian(ylim = c(0,40)) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+b <- ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  coord_cartesian(ylim = c(0,40)) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+ggarrange(a, b,
+          labels = c("a", "b"),
+          common.legend = TRUE, 
+          legend = "bottom")
+
+```
+
+- And how well do dPSI estimates correlate?
+
+```{r, fig.height = 7, fig.cap = "Scatterplot of absolute delta PSI values for those junctions that (a) overlap between our own data and SRP0518181, are within clusters that are differentially spliced in *one or both* datasets across the same comparisons and share the same direction of effect and (b) all junctions found within 'validated' clusters that contain junctions shared as described in (a)."}
+
+a <- ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.05, 0.05), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+b <- ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.05, 0.05), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+ggarrange(a, b,
+          ncol = 1,
+          labels = c("a", "b"))
+  
+```
+
+```{r, class.source='fold-show'}
+
+# Correlation of junctions with same direction of effect within ds clusters 
+ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+# Correlation of all junctions within ds clusters that contain some junctions with same direction of effect
+ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+```
+
+- Unsurprisingly, dPSI correlates well (and positively) when looking at junctions with the same direction of effect within ds clusters found across both datasets. However, if we seed from these junctions back to the clusters they originate from and check correlation across all junctions within a cluster, the correlation of dPSI is far from obvious.
+- This is in large part because junctions found to share same direction of effect typically make up < 75% of the larger cluster they originate from, as seen from the histogram below. Thus, looking at this from a whole cluster perspective will add noise to the comparison.
+
+```{r, fig.cap = "Histogram of shared clusters and the proportion of junctions within each cluster that share the same direction of effect."}
+
+ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  dplyr::group_by(cluster_id.own) %>% 
+  dplyr::summarise(n = n(),
+                   same_direction_of_effect = sum(same_direction_of_effect, na.rm = TRUE),
+                   prop_own = same_direction_of_effect/n) %>% 
+  ggplot(aes(x = prop_own)) + 
+  geom_histogram(binwidth = 0.01) +
+  labs(x = "Proportion of junctions within a shared cluster that share the same direction of effect") +
+  coord_cartesian(xlim = c(0,1.05)) +
+  theme_rhr
+
+```
+
+### Pathway enrichment analysis
+Gene lists derived by using genes overlapping "validated" clusters that are differentially spliced in *both* datasets that contain junctions that share the *same* direction of effect.
+
+#### Overlap between gene lists
+- Gene lists are quite small:
+```{r}
+# Extract genes
+genes_list <- setNames(ds_val %>% 
+                              dplyr::filter(same_direction_of_effect == TRUE,
+                                            p.adjust.own < 0.05,
+                                            p.adjust.SRP058181 < 0.05
+                                            ) %>% 
+                              group_split(comparison),
+                            ds_val %>% 
+                              dplyr::filter(same_direction_of_effect == TRUE,
+                                            p.adjust.own < 0.05,
+                                            p.adjust.SRP058181 < 0.05
+                                            ) %>% 
+                              .[["comparison"]] %>% 
+                              unique() %>% 
+                              sort()) %>% 
+  # For each dataframe, extract the gene column and remove duplicate genes
+  lapply(., function(x){
+    
+    x %>% 
+      .[["genes"]] %>% 
+      unique()
+  })
+
+lapply(genes_list, length)
+
+```
+
+- Thus, worth checking overlap between them.
+
+```{r, fig.cap = "Overlap between genes lists derived from clusters found differentially spliced in the same comparison and with the same direction of effect in our own data & SRP058181. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+
+# Background list
+all_genes <- leafcutter_list$own$cluster_significance %>% 
+  # remove clusters that overlap multiple genes
+  dplyr::filter(!str_detect(genes, ",")) %>% 
+  .[["genes"]] %>% 
+  unique() 
+
+UpSetR::upset(data = fromList(genes_list), sets = names(genes_list), keep.order = TRUE, nintersects = 25, order.by = "freq")
+
+```
+
+- No overlaps.
+- Genes in each list include:
+```{r}
+
+genes_list
+
+```
+
+
+#### Pathway results
+- FDR correction (as opposed to gSCS) used.
+- Terms filtered for size (i.e. term size > 20 or <= 2000)
+```{r, fig.cap = "Gene ontology enrichments (GO, KEGG, REACTOME) of genes across each comparison. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the function (defined as intersection_size/query_size). Fill of dot indicates FDR-adjusted p-value."}
+
+gprofiler <- lapply(genes_list, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "fdr", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       evcodes = TRUE)})
+
+gprofiler %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>%
+  ggplot(aes(x = comparison, 
+             y = term_name, 
+             size = precision, 
+             fill = p_value)) +
+  geom_point(pch = 21) +    
+  scale_fill_viridis_c(direction = -1) +
+  labs(x = "Comparison", y = "Dataset: Cell type") +
+  theme_rhr
+```
+
+### EWCE
+- Same gene list as above i.e. genes overlapping "validated" clusters that are differentially spliced in both datasets and contain junctions that are differentially spliced across the same comparison and with the same direction of effect.
+```{r, eval = F}
+
+# Load internal specificity matrices
+ctd_files <- 
+    list.files(
+    file.path(
+      path_to_results,
+      "snRNA/specificity_matrices/2020_March/"
+    ), 
+    pattern = "ctd", 
+    full.names = T)
+    
+
+ctd_list <- vector(mode = "list", length = length(ctd_files))
+
+for(i in 1:length(ctd_files)){
+  
+  # Load ctd
+  ctd_list[[i]] <- readRDS(ctd_files[i])
+  
+  # Extract file name
+  title <- 
+    ctd_files[i] %>% 
+    str_replace(".*/", "") %>% 
+    str_replace("\\..*", "") %>% 
+    str_replace(".*_", "")
+  
+  # Name list
+  names(ctd_list)[i] <- title
+ 
+}
+
+# Run EWCE
+# Cannot run with Control_vs_PD, as list is too small for EWCE
+ewce <- MarkerGenes::run_ewce_controlled(list_of_genes = genes_list[2:3],
+                                         ctd_list$Control, ctd_list$PD,
+                                         ctd_list$PDD, ctd_list$DLB,
+                                         celltypeLevel = 1, 
+                                         reps = 100000, 
+                                         genelistSpecies = "human", 
+                                         sctSpecies = "human",
+                                         mouse_to_human = NULL)
+
+saveRDS(
+  ewce, 
+  file = 
+    file.path(
+      path_to_results, 
+      "leafcutter/ewce/ewce_leafcutter_ds_validated_celltype.Rds"
+    )
+)
+
+```
+
+```{r, fig.height = 6, fig.cap = "EWCE results using only genes overlapping clusters validated in SRP058181 and single-cell RNA-seq data from our own internal snRNA. The x-axis denotes the disease groups compared in the differential splicing analysis, while the y-axis denotes the cell type and from which specificity matrix it is derived. Enrichments are grouped by overall cell-type classes. Standard deviations from the mean denotes the distance (in standard deviations) of the target list from the mean of the bootstrapped samples. No cell types passed multiple test correction performed across all results using FDR. Results with uncorrected p > 0.05 were coloured grey."}
+
+ewce <- 
+  readRDS(
+    file.path(
+      path_to_results, 
+      "leafcutter/ewce/ewce_leafcutter_ds_validated_celltype.Rds"
+    )
+  )
+
+plot <- ewce %>%
+  dplyr::mutate(FDR.p = p.adjust(p, method="BH"),
+                Class = case_when(
+                  CellType %in% c("Astrocyte", "ASC", "Astro") ~ "Astrocyte",
+                  CellType %in% c("MG", "Microglia") ~ "Microglia",
+                  CellType %in% c("END", "Endo", "Endothelial cell", "Vascular") ~ "Vascular",
+                  CellType %in% c("ODC", "Oligo", "Oligodendrocyte") ~ "Oligodendrocyte",
+                  CellType %in% c("exCA", "Excitatory", "exDG", "exPFC", "Glutamatergic") ~ "Excitatory \n neuron",
+                  CellType %in% c("GABA", "GABAergic", "Inhibitory") ~ "Inhibitory \n neuron",
+                  CellType == "OPC" ~ "OPC",
+                  CellType == "NSC" ~ "NSC"),
+                Study = str_replace(Study, "list\\$", ""),
+                Study = fct_relevel(Study, 
+                                    c("Control", "PD", "PDD", "DLB")),
+                joint_name = str_c(Study, CellType, sep = ":"),
+                sd_from_mean = ifelse(p < 0.05, sd_from_mean, NA)) %>% 
+  dplyr::arrange(Class, Study) %>% 
+  dplyr::mutate_at(vars(joint_name), list(~ factor(., levels = unique(.)))) %>% 
+  ggplot(aes(x = GeneSet, y = forcats::fct_rev(joint_name))) +
+  geom_tile(aes(fill = sd_from_mean), colour = "black") +    
+  facet_grid(rows = vars(Class), scales = "free", space = "free_y") +
+  scale_fill_viridis_c(na.value = "grey") +
+  labs(x = "", y = "Dataset: Cell type") +
+  theme_rhr + 
+  theme(panel.grid = element_blank(),
+        strip.text.y = element_text(size = 8, angle = 0))
+
+plot
+
+```
+- Highlighted cell types include (with a comparison to enrichments seen for our own data wherein top 100 differentially spliced genes filtered by dPSI >= 0.1 were used; see section 8.2 in [Leafcutter.html](../quantification_splicing/Leafcutter.html):
+    - Oligodendrocytes for Control_vs_PDD. Similar to what we saw using top 100 differentially spliced genes.
+    - And if we allow for nominal results (as shown below), excitatory neurons also highlighted for PD_vs_PDD. Similar to what we saw using top 100 differentially spliced genes, and also in the same specificity matrices (i.e. PDD and DLB).
+
+## Exact match
+- Overall strategy:
+    1. Find the set of intersecting junctions between both datasets --> these can be used to define which clusters from our own data could be detected in SRP058181.
+        - **Definition of match**: clusters that intersect between datasets contain the same number of junctions, with matching donor and acceptor positions.
+    2. Validation will depend on the match between clusters in the two datasets being exact. 
+    3. Those clusters that "validate" and are found differentially spliced in our own data can then be tested for differential splicing in SRP058181 i.e. adjust p-value within comparison to reflect smaller number of tests.
+- **Only cell-type-corrected data used.**
+
+### Intersecting clusters
+- This has already been done in the previous section. All that now requires doing is filtering the output of this to include only clusters that overlap *exactly* between the two datasets.
+```{r, fig.cap = "Histogram of the proportion overlap between *differentially spliced* clusters derived from own data that exactly match clusters that are also found in SRP058181."}
+
+# Filter generated clu_prop_overlap for cluster ids from clu_overlap_ds
+# clu_prop_overlap already filtered for ambiguous clusters
+# Generate geom_density
+clu_prop_overlap_exact %>% 
+  dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own) %>% 
+  tidyr::gather(key = "overlap", value = "prop_overlap", contains("prop_overlap")) %>% 
+  dplyr::mutate(overlap = case_when(overlap == "prop_overlap.own" ~ "ds own --> all SRP058181",
+                                    overlap == "prop_overlap.SRP058181" ~ "all SRP058181 --> ds own")) %>% 
+  ggplot(aes(x = prop_overlap, fill = overlap)) +
+  geom_histogram(binwidth = 5, alpha = 0.5, colour = "black") +
+  facet_wrap(~overlap) +
+  labs(x = "Proportion overlap of cluster from discovery dataset into validation dataset") +
+  theme_rhr +
+  theme(legend.position = "none")
+
+```
+
+### FDR-correction of intersecting SRP058181 clusters
+- Strategy:
+    1. Create dataframe (`overlapping_clusters`) with clusters from own data that:
+        a. Have a 100% overlap i.e. all junctions within cluster were found within a cluster from SRP058181. 
+        b. AND were found differentially spliced.
+    2. For SRP058181, filter `cluster_significance` dataframe for those clusters from `overlapping_clusters`. Then, for each pairwise comparison, perform FDR-correction using the smaller set of overlapping clusters from SRP058181.
+    3. For both datasets, merge junction-level data (`intron_usage`) with cluster-level data (`cluster_significance`) and filter for only those cluster ids in `overlapping_clusters`. Once this is done, merge output from each dataset (ensuring to filter SRP058181 for only those clusters that are now significant following FDR-correction).
+    4. Perform a full join of the two lists by: comparison, chromosome, start and end site of junction, overlapping genes. By joining using comparison, we ensure that we are only keeping those junctions that were found differentially spliced in the *SAME* comparison in *one or both* datasets.
+    5. Add a column `same_direction_of_effect`. This column evaluates whether junctions that were found differentially spliced in the *same* comparison across *one or both* datasets share the *same* direction of effect.
+```{r}
+
+# Filter for overlapping clusters with 100% overlap from own data into SRP058181
+# AND that are differentially spliced in own data
+overlapping_clusters <- 
+  clu_prop_overlap_exact %>% 
+  dplyr::filter(cluster_id.own %in% clu_overlap_ds$cluster_id.own)
+
+print(str_c("Number of overlapping clusters differentially spliced in SRP058181, prior to FDR-correction within smaller set: ",
+            clu_significance$SRP058181 %>% 
+              dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, 
+                            status == "Success",
+                            p.adjust < 0.05) %>%
+              dplyr::ungroup() %>% 
+              dplyr::distinct(cluster_id) %>% 
+              nrow()))
+
+# Correct each comparison using fdr on smaller set
+clu_significance_fdr <- clu_significance
+
+clu_significance_fdr$SRP058181 <-
+  clu_significance$SRP058181 %>% 
+  dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, status == "Success") %>% 
+  dplyr::group_by(comparison) %>% 
+  dplyr::mutate(p.adjust = p.adjust(p, method = "fdr"))
+
+print(str_c("Number of overlapping clusters differentially spliced in SRP058181, following FDR-correction within smaller set: ",
+            clu_significance_fdr$SRP058181 %>% 
+              dplyr::filter(cluster_id %in% overlapping_clusters$cluster_id.SRP058181, 
+                            status == "Success",
+                            p.adjust < 0.05) %>% 
+              dplyr::ungroup() %>% 
+              dplyr::distinct(cluster_id) %>% 
+              nrow()))
+
+# Create list with dataframes from each dataset containing merged intron usage and cluster significance only for overlapping_clusters
+clu_val <- vector(mode = "list", length = 2)
+
+for(i in 1:length(clu_val)){
+  
+  # Get name of each dataset
+  name <- names(intron_usage)[i]
+  
+  # Column name for cluster ids in each dataset
+  col_name <- str_c("cluster_id.", name)
+  
+  # Join intron usage (i.e. junction-level data) with cluster significance (cluster-level significance)
+  # And filter for only those clusters found within overlapping_clusters
+  clu_val[[i]] <- intron_usage[[name]] %>% 
+    # Filter for appropriate comparisons
+    dplyr::filter(comparison %in% c("Control_vs_PD", "Control_vs_PDD", "PD_vs_PDD")) %>% 
+    # dplyr::inner_join(clu_significance_fdr[[name]]) %>% 
+        dplyr::inner_join(clu_significance_fdr[[name]]) %>% 
+    dplyr::select(chr, start, end, comparison, cluster_id, loglr, p.adjust, df, Control, PD, PDD, deltapsi, genes) %>% 
+    # Add direction of effect
+    dplyr::mutate(direction_of_effect = case_when(deltapsi > 0 ~ "upregulated",
+                                                  deltapsi < 0 ~ "downregulated",
+                                                  deltapsi == 0 ~ "no_change")) %>% 
+    dplyr::filter(cluster_id %in% c(overlapping_clusters %>% 
+                                                  .[[col_name]])) 
+  names(clu_val)[i] <- name
+  
+}
+
+# Join lists together
+# Add additional column evaluating for those junctions shared between comparisons whether they share direction of effect 
+# Remove any junctions that are not shared between comparisons
+ds_val <- clu_val$own %>% 
+  full_join(clu_val$SRP058181 %>% 
+              dplyr::filter(p.adjust < 0.05), 
+            by = c("comparison", "chr", "start", "end", "genes"),
+            suffix = c(".own", ".SRP058181")) %>% 
+  dplyr::mutate(same_direction_of_effect = case_when(direction_of_effect.own == direction_of_effect.SRP058181 ~ TRUE, 
+                                                          direction_of_effect.own != direction_of_effect.SRP058181 ~ FALSE,
+                                                    TRUE ~ NA))
+
+```
+
+### Correlating dPSI estimates
+- If we now return to the junction level... from the set of junctions that are (i) found differentially spliced in one or both datasets and (ii) appear in the same comparison in both datasets, what proportion of these share the same direction of effect? And would we expect to see this by random chance?
+- Strategy:
+    - Construct contingency tables, with:
+        1. Differentially spliced in both data sets?
+        2. Same direction of effect (conditional on same comparison)?
+    - Run Fisher's exact test.
+
+```{r}
+
+cont_table <- 
+  ds_val %>% 
+  dplyr::mutate(same_direction_of_effect = fct_relevel(as.factor(same_direction_of_effect),
+                                                       levels = c("TRUE", "FALSE")),
+                ds_both = fct_relevel(case_when(p.adjust.own < 0.05 & p.adjust.SRP058181 < 0.05~ TRUE,
+                                                TRUE~ FALSE) %>% as.factor(),
+                                      levels = c("TRUE", "FALSE"))) %>% 
+  dplyr::filter(!is.na(same_direction_of_effect)) %>% 
+  with(., table(same_direction_of_effect, ds_both,  
+                dnn = c("Same direction of effect?", "Differentially spliced (same comparison) in both datasets?")))
+
+cont_table
+
+cont_table %>% 
+  fisher.test()
+
+```
+- No association between whether junctions within exactly-matching clusters found differentially spliced in both datasets across the same comparison also share the same direction of effect.
+
+
+```{r, fig.cap= "Density plot of absolute delta PSI values for (a) those junctions that (i) overlap between our own data and SRP0518181, (ii) are within *exactly-matching* clusters that are differentially spliced in *one or both* datasets across the same comparisons, and (iii) share the same direction of effect and (b) all junctions found within 'validated' clusters that contain junctions shared as described in (a)."}
+
+a <- ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  coord_cartesian(ylim = c(0,40)) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+b <- ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  dplyr::select(chr, start, end, contains("comparison"), contains("deltapsi")) %>% 
+  tidyr::gather(key = dataset, value = dPSI, deltapsi.own:deltapsi.SRP058181) %>% 
+  dplyr::mutate(dataset = str_replace(dataset, ".*\\.", "")) %>% 
+  ggplot(aes(x = abs(dPSI), fill = dataset)) + 
+  geom_density(alpha = 0.5) +
+  coord_cartesian(ylim = c(0,40)) +
+  labs(x = expression("Absolute "*Delta*"PSI")) +
+  theme_rhr
+
+ggarrange(a, b,
+          labels = c("a", "b"),
+          common.legend = TRUE, 
+          legend = "bottom")
+
+```
+
+```{r, fig.height = 7, fig.cap = "Scatterplot of absolute delta PSI values for those junctions that (a) overlap between our own data and SRP0518181, are within *exactly-matching* clusters that are differentially spliced in *one or both* datasets across the same comparisons and share the same direction of effect and (b) all junctions found within 'validated' clusters that contain junctions shared as described in (a)."}
+
+a <- ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.05, 0.05), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+b <- ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  ggplot(aes(x = deltapsi.own, y = deltapsi.SRP058181)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm") +
+  labs(x = expression(Delta*"PSI in own data"), y = expression(Delta*"PSI in SRP058181")) +
+  facet_zoom(xlim = c(-0.05, 0.05), ylim = c(-0.025, 0.025), zoom.size = 1) +
+  theme_rhr
+
+ggarrange(a, b,
+          ncol = 1,
+          labels = c("a", "b"))
+  
+```
+
+```{r, class.source='fold-show'}
+
+# Correlation of junctions with same direction of effect within ds clusters 
+ds_val %>% 
+  dplyr::filter(same_direction_of_effect == TRUE) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+# Correlation of all junctions within ds clusters that contain some junctions with same direction of effect
+ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  cor.test(~ deltapsi.own + deltapsi.SRP058181, data = ., method = "spearman")
+
+```
+
+- Unsurprisingly, dPSI correlates well (and positively) when looking at junctions with the same direction of effect within ds clusters found across both datasets. 
+- However, as before when we seed from these junctions back to the clusters they originate from and check correlation across all junctions within a cluster, the correlation of dPSI while improved using *exactly-matching* clusters, it is still weak.
+- Again, this is in large part because junctions found to share same direction of effect typically make up < 75% of the larger cluster they originate from, as seen from the histogram below. Thus, looking at this from a whole cluster perspective will add noise to the comparison.
+
+```{r, fig.cap = "Histogram of shared clusters and the proportion of junctions within each cluster that share the same direction of effect."}
+
+ds_val %>% 
+  dplyr::filter(cluster_id.own %in% c(ds_val %>% 
+                                        dplyr::filter(same_direction_of_effect == TRUE) %>% 
+                                        .[["cluster_id.own"]])) %>% 
+  dplyr::group_by(cluster_id.own) %>% 
+  dplyr::summarise(n = n(),
+                   same_direction_of_effect = sum(same_direction_of_effect, na.rm = TRUE),
+                   prop_own = same_direction_of_effect/n) %>% 
+  ggplot(aes(x = prop_own)) + 
+  geom_histogram(binwidth = 0.01) +
+  labs(x = "Proportion of junctions within a shared cluster that share the same direction of effect") +
+  coord_cartesian(xlim = c(0,1.05)) +
+  theme_rhr
+
+```
+
+### Contingency table and fisher's exact test
+- Differential splicing in this case includes:
+    - Clusters found differentially spliced in any comparison (Control_vs_PD, Control_vs_PDD or PD_vs_PDD)
+    - Clusters that pass FDR < 0.05 in both datasets, following multiple testing of SRP058181 using smaller set of clusters that validated between both datasets
+    
+```{r}
+
+clu_significance_fdr$SRP058181 <- clu_significance_fdr$SRP058181 %>% 
+              dplyr::bind_rows(clu_significance$SRP058181 %>% 
+                                 dplyr::anti_join(clu_significance_fdr$SRP058181, 
+                                                  by = c("comparison", "cluster_id")))
+
+# Construct contingency table of differential splicing
+clu_overlap_exact_ds <- clu_overlap_exact %>% 
+  dplyr::mutate(ds.own = fct_relevel(case_when(cluster_id.own %in% c(clu_significance_fdr$own %>%
+                                                                       dplyr::filter(p.adjust < 0.05) %>%
+                                                                       .[["cluster_id"]] %>%
+                                                                       unique()) ~ TRUE,
+                                               TRUE~ FALSE) %>% as.factor(),
+                                     levels = c("TRUE", "FALSE")),
+                ds.SRP058181 = fct_relevel(case_when(cluster_id.SRP058181 %in% c(clu_significance_fdr$SRP058181 %>%
+                                                                                   dplyr::filter(p.adjust < 0.05) %>%
+                                                                                   .[["cluster_id"]] %>%
+                                                                                   unique()) ~ TRUE,
+                                                     TRUE~ FALSE) %>% as.factor(),
+                                           levels = c("TRUE", "FALSE")))
+
+cont_table <- clu_overlap_exact_ds %>%
+  with(., table(ds.SRP058181, ds.own, dnn = c("Differentially spliced in SRP058181?", "Differentially spliced in own data?")))
+
+cont_table
+
+# saveRDS(clu_overlap_exact_ds, file.path(path_to_results, "leafcutter/diff_splicing_PCaxes/cluster_overlap_exact_ds_with_SRP058181.Rds"))
+
+
+# Fisher's exact test
+cont_table %>% 
+  fisher.test()
+
+```
+
+
+### Pathway enrichment analysis
+Gene lists derived by using genes overlapping *exactly-matching* "validated" clusters that are differentially spliced in *both* datasets that contain junctions that share the *same* direction of effect.
+
+#### Overlap between gene lists
+- Gene lists are very small (and arguably not even worth running gene ontology enrichment on them):
+```{r}
+# Extract genes
+genes_list <- setNames(ds_val %>% 
+                              dplyr::filter(same_direction_of_effect == TRUE,
+                                            p.adjust.own < 0.05,
+                                            p.adjust.SRP058181 < 0.05
+                                            ) %>% 
+                              group_split(comparison),
+                            ds_val %>% 
+                              dplyr::filter(same_direction_of_effect == TRUE,
+                                            p.adjust.own < 0.05,
+                                            p.adjust.SRP058181 < 0.05
+                                            ) %>% 
+                              .[["comparison"]] %>% 
+                              unique() %>% 
+                              sort()) %>% 
+  # For each dataframe, extract the gene column and remove duplicate genes
+  lapply(., function(x){
+    
+    x %>% 
+      .[["genes"]] %>% 
+      unique()
+  })
+
+lapply(genes_list, length)
+
+```
+
+- Thus, worth checking overlap between them.
+
+```{r, fig.cap = "Overlap between genes lists derived from clusters found differentially spliced in the same comparison and with the same direction of effect in our own data & SRP058181. In the matrix (lower half of panel), rows represent the pairwise comparisons and the columns represent their intersections, with a single black filled circle representing those genes that were not found to be part of an intersection, while black filled circles connected by a vertical line represent genes that intersect across panels. The size of each intersection is shown as a bar chart above the matrix (upper half of panel), while the size of each gene set is shown to the left of the matrix."}
+
+# Background list
+all_genes <- leafcutter_list$own$cluster_significance %>% 
+  # remove clusters that overlap multiple genes
+  dplyr::filter(!str_detect(genes, ",")) %>% 
+  .[["genes"]] %>% 
+  unique() 
+
+UpSetR::upset(data = fromList(genes_list), sets = names(genes_list), keep.order = TRUE, nintersects = 25, order.by = "freq")
+
+```
+
+- No overlaps.
+- Genes in each list include:
+```{r}
+
+genes_list
+
+```
+
+#### Pathway results
+- FDR correction (as opposed to gSCS) used.
+- Terms filtered for size (i.e. term size > 20 or <= 2000)
+```{r, fig.cap = "Gene ontology enrichments (GO, KEGG, REACTOME) of genes across each comparison. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the function (defined as intersection_size/query_size). Fill of dot indicates FDR-adjusted p-value."}
+
+gprofiler <- lapply(genes_list, function(x){
+  x %>% 
+    gost(., organism = "hsapiens",
+       correction_method= "fdr", significant = TRUE,
+       user_threshold = 0.05,
+       custom_bg= all_genes,
+       sources = c("GO", "REAC", "KEGG", "OMIM"),
+       evcodes = TRUE)})
+
+gprofiler %>% 
+  lapply(., function(x){
+    x$result %>% 
+      as_tibble()
+  }) %>% 
+  qdapTools::list_df2df(., col = "comparison") %>% 
+  dplyr::select(comparison, term_name, source, everything(), -query, -significant) %>% 
+  dplyr::filter(term_size > 20 & term_size <= 2000) %>%
+  ggplot(aes(x = comparison, 
+             y = term_name, 
+             size = precision, 
+             fill = p_value)) +
+  geom_point(pch = 21) +    
+  scale_fill_viridis_c(direction = -1) +
+  labs(x = "Comparison", y = "Dataset: Cell type") +
+  theme_rhr
+```
+
+- And with clusterProfiler (not filtered for term size, but terms clustered by semantic similarity)
+
+```{r, eval = F}
+
+# Also, try running with clusterProfiler, which has a number of useful functionalities:
+# `compareCluster`: permits comparison of GO enrichments across groups. 
+# Uses hypergeometric model to perform enrichment analysis within each group (i.e. does not account for semantic similarity in testing as GProfiler does, which could be a disadvantage)
+# Allows semantic trimming of terms.
+
+library(clusterProfiler)
+
+ont <- c("BP", "CC", "MF")
+cluster_compare_GO <- setNames(vector(mode = "list", length = length(ont)),
+                             ont)
+
+for(i in 1:length(ont)){
+  
+  cluster_compare_GO[[i]] <-   
+    genes_list %>% 
+    qdapTools::list2df(col1 = "genes", col2 = "comparison") %>%  
+    clusterProfiler::compareCluster(genes ~ comparison, 
+                                    data=., 
+                                    keyType = "SYMBOL",
+                                    fun="enrichGO", 
+                                    ont = ont[i],
+                                    pAdjustMethod = "BH",
+                                    qvalueCutoff = 0.05,
+                                    OrgDb='org.Hs.eg.db')
+  
+}
+
+# saveRDS(cluster_compare_GO, file.path(path_to_results, "leafcutter/gprofiler/clusterProfiler_leafcutter_overlap_exact_ds_with_SRP058181.Rds"))
+
+```
+
+```{r}
+
+cluster_compare_GO <- 
+  readRDS(
+    file.path(path_to_results, "leafcutter/gprofiler/clusterProfiler_leafcutter_overlap_exact_ds_with_SRP058181.Rds")
+  )
+
+cluster_compare_GO %>% 
+  lapply(., function(df){
+    
+    df %>% 
+      clusterProfiler::simplify(., cutoff=0.4, by="p.adjust", select_fun=min) %>% 
+      clusterProfiler::dotplot(., showCategory = NULL, font.size = 8) +
+      geom_point(shape = 1,colour = "black") +
+      scale_size_continuous(name = "precision") +
+      scale_colour_viridis_c(direction = -1) +
+      theme_rhr
+    
+  })
+```
+
+### EWCE
+- Same gene list as above i.e. genes overlapping *exactly-matching* "validated" clusters that are differentially spliced in both datasets and contain junctions that are differentially spliced across the same comparison and with the same direction of effect.
+```{r, eval = F}
+
+# Load internal specificity matrices
+ctd_files <- 
+    list.files(
+    file.path(
+      path_to_results,
+      "snRNA/specificity_matrices/2020_March/"
+    ), 
+    pattern = "ctd", 
+    full.names = T)
+    
+
+ctd_list <- vector(mode = "list", length = length(ctd_files))
+
+for(i in 1:length(ctd_files)){
+  
+  # Load ctd
+  ctd_list[[i]] <- readRDS(ctd_files[i])
+  
+  # Extract file name
+  title <- 
+    ctd_files[i] %>% 
+    str_replace(".*/", "") %>% 
+    str_replace("\\..*", "") %>% 
+    str_replace(".*_", "")
+  
+  # Name list
+  names(ctd_list)[i] <- title
+ 
+}
+
+# Run EWCE
+# Cannot run with Control_vs_PD, as list is too small for EWCE
+ewce <- MarkerGenes::run_ewce_controlled(list_of_genes = genes_list[2:3],
+                                         ctd_list$Control, ctd_list$PD,
+                                         ctd_list$PDD, ctd_list$DLB,
+                                         celltypeLevel = 1, 
+                                         reps = 100000, 
+                                         genelistSpecies = "human", 
+                                         sctSpecies = "human",
+                                         mouse_to_human = NULL)
+
+saveRDS(
+  ewce, 
+  file = 
+    file.path(
+      path_to_results, 
+      "leafcutter/ewce/ewce_leafcutter_ds_exact_validated_celltype.Rds"
+      )
+)
+
+```
+
+- As no results passed FDR < 0.05, used unadjusted p-value < 0.05.
+
+```{r, fig.height = 6, fig.cap = "EWCE results using only genes overlapping *exactly-matching* clusters validated in SRP058181 and single-cell RNA-seq data from our own internal snRNA. The x-axis denotes the disease groups compared in the differential splicing analysis, while the y-axis denotes the cell type and from which specificity matrix it is derived. Enrichments are grouped by overall cell-type classes. Standard deviations from the mean denotes the distance (in standard deviations) of the target list from the mean of the bootstrapped samples. Non-significant results (p > 0.05) were coloured grey."}
+
+ewce <- 
+  readRDS(
+    file.path(
+      path_to_results, 
+      "leafcutter/ewce/ewce_leafcutter_ds_exact_validated_celltype.Rds"
+    )
+  )
+
+plot <- ewce %>%
+  dplyr::filter(!Study %in% c("AIBS2018", "DRONC_human")) %>%
+  dplyr::mutate(FDR.p = p.adjust(p, method="BH"),
+                Class = case_when(
+                  CellType %in% c("Astrocyte", "ASC", "Astro") ~ "Astrocyte",
+                  CellType %in% c("MG", "Microglia") ~ "Microglia",
+                  CellType %in% c("END", "Endo", "Endothelial cell", "Vascular") ~ "Vascular",
+                  CellType %in% c("ODC", "Oligo", "Oligodendrocyte") ~ "Oligodendrocyte",
+                  CellType %in% c("exCA", "Excitatory", "exDG", "exPFC", "Glutamatergic") ~ "Excitatory \n neuron",
+                  CellType %in% c("GABA", "GABAergic", "Inhibitory") ~ "Inhibitory \n neuron",
+                  CellType == "OPC" ~ "OPC",
+                  CellType == "NSC" ~ "NSC"),
+                Study = str_replace(Study, "list\\$", ""),
+                Study = fct_relevel(Study, 
+                                    c("Control", "PD", "PDD", "DLB")),
+                joint_name = str_c(Study, CellType, sep = ":"),
+                sd_from_mean = ifelse(p <= 0.05, sd_from_mean, NA)) %>% 
+  dplyr::arrange(Class, Study) %>% 
+  dplyr::mutate_at(vars(joint_name), list(~ factor(., levels = unique(.)))) %>% 
+  ggplot(aes(x = GeneSet, y = forcats::fct_rev(joint_name))) +
+  geom_tile(aes(fill = sd_from_mean), colour = "black") +    
+  facet_grid(rows = vars(Class), scales = "free", space = "free_y") +
+  scale_fill_viridis_c(na.value = "grey") +
+  labs(x = "", y = "Dataset: Cell type") +
+  theme_rhr + 
+  theme(panel.grid = element_blank(),
+        strip.text.y = element_text(size = 8, angle = 0))
+
+plot
+```
+
+- Using *exactly-matching* clusters and allowing for nominal enrichments, we observe an enrichment of PD_vs_PDD genes in excitatory neurons. This is similar to what we observed for our own data wherein top 100 differentially spliced genes filtered by dPSI >= 0.1 were used; see [Leafcutter.html](../quantification_splicing/Leafcutter.html).
+
+# Session info
+```{r}
+sessionInfo()
+```
+
+
+
+
+
