@@ -1,6 +1,6 @@
 ## Welcome to GitHub Pages
 
-Add link to [test](https://rhreynolds.github.io/LBD-seq-bulk-analyses/test/test.html)
+Add link to [test](https://rhreynolds.github.io/LBD-seq-bulk-analyses/test/test_2.html)
 
 You can use the [editor on GitHub](https://github.com/RHReynolds/LBD-seq-bulk-analyses/edit/main/docs/index.md) to maintain and preview the content for your website in Markdown files.
 
