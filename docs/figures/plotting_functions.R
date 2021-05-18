@@ -2322,13 +2322,13 @@ process_magma_ldsc <- function(ldsc_results, magma_results, fct_levels){
     dplyr::mutate(ldsc_FDR = p.adjust(ldsc_P, method = "BH"),
                   magma_FDR = p.adjust(magma_P, method = "BH"),
                   p_category = case_when(ldsc_FDR < 0.05 & magma_FDR < 0.05 ~ "Both**",
-                                         ldsc_FDR < 0.05 & magma_P < 0.05 ~ "LDSC** & H-MAGMA*",
-                                         ldsc_P < 0.05 & magma_FDR < 0.05 ~ "H-MAGMA** & LDSC*",
+                                         ldsc_FDR < 0.05 & magma_P < 0.05 ~ "sLDSC** & H-MAGMA*",
+                                         ldsc_P < 0.05 & magma_FDR < 0.05 ~ "H-MAGMA** & sLDSC*",
                                          ldsc_P < 0.05 & magma_P < 0.05 ~ "Both*",
                                          magma_FDR < 0.05 ~ "H-MAGMA**",
-                                         ldsc_FDR < 0.05 ~ "LDSC**",
+                                         ldsc_FDR < 0.05 ~ "sLDSC**",
                                          magma_P < 0.05 ~ "H-MAGMA*",
-                                         ldsc_P < 0.05 ~ "LDSC*",
+                                         ldsc_P < 0.05 ~ "sLDSC*",
                                          TRUE ~ "None")) 
   
   
@@ -2350,10 +2350,10 @@ process_magma_ldsc <- function(ldsc_results, magma_results, fct_levels){
 plot_magma_ldsc <- function(joint_results, facet_by_direction = F, facet_labels){
   
   p_colours <- 
-    tibble(p_category = c("Both**", "LDSC** & H-MAGMA*", "H-MAGMA** & LDSC*", "Both*", "LDSC**", "H-MAGMA**", "LDSC*", "H-MAGMA*", "None"), 
+    tibble(p_category = c("Both**", "sLDSC** & H-MAGMA*", "H-MAGMA** & sLDSC*", "Both*", "sLDSC**", "H-MAGMA**", "sLDSC*", "H-MAGMA*", "None"), 
            p_category_fct = p_category %>%
              fct_relevel(.,
-                         c("Both**", "Both*", "LDSC** & H-MAGMA*", "LDSC**", "LDSC*", "H-MAGMA** & LDSC*", "H-MAGMA**", "H-MAGMA*", "None"))) %>% 
+                         c("Both**", "Both*", "sLDSC** & H-MAGMA*", "sLDSC**", "sLDSC*", "H-MAGMA** & sLDSC*", "H-MAGMA**", "H-MAGMA*", "None"))) %>% 
     dplyr::arrange(p_category_fct) %>% 
     dplyr::mutate(col_hex = c("#00A087FF", "#91D1C2FF", "#E64B35FF", "#f58b7aff", "#f6c6bfff", "#3c5488ff", "#7288beff", "#a9c1f6ff",  "#C1C1C1"))
   
