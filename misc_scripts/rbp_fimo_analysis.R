@@ -5,7 +5,11 @@ library(BSgenome)
 library(BSgenome.Hsapiens.UCSC.hg38.masked)
 library(doParallel)
 library(foreach)
+library(here)
 library(tidyverse)
+
+# Set wd
+here::i_am("misc_scripts/rbp_fimo_analysis.R")
 
 # Source fixed file paths
 source(here::here("R", "file_paths.R"))

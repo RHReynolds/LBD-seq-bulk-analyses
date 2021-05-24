@@ -202,6 +202,8 @@ upset(fromList(gene_list %>%
 
 ```{bash, eval = F, class.source='fold-hide'}
 
+cd /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/
+
 nohup Rscript \
 /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/LDSC_cell_type_specificity_deciles.R \
 &>/home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/nohup_logs/LDSC_cell_type_specificity_deciles.log&

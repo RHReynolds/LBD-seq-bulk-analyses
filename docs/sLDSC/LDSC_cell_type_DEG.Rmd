@@ -199,7 +199,7 @@ upset(fromList(gene_list %>%
 
 ```{bash, eval = F}
 
-cd /home/rreynolds/projects/Aim2_PDsequencing_wd/raw_data/ldsc_annotations/celltype.DEG
+cd /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/
 
 nohup Rscript \
 /home/rreynolds/projects/Aim2_PDsequencing_wd/LBD-seq-bulk-analyses/misc_scripts/LDSC_cell_type_DEG.R \

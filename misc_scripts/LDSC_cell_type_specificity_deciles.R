@@ -5,10 +5,14 @@
 library(devtools)
 library(doParallel)
 library(foreach)
+library(here)
 library(tidyverse)
 library(qdapTools)
 library(rtracklayer)
 devtools::load_all(path = "/home/rreynolds/packages/LDSCforRyten/")
+
+# Set wd
+here::i_am("misc_scripts/LDSC_cell_type_specificity_deciles.R")
 
 # Source fixed file paths
 source(here::here("R", "file_paths.R"))

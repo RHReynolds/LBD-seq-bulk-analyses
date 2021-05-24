@@ -78,7 +78,7 @@ attract_db_filter <- function(path_to_attract_db,
 }
 
 # Load query_biomart function
-source("/home/rreynolds/projects/Aim2_PDsequencing_wd/Aim2_PDsequencing/R/biomart_df.R")
+source(here::here("R", "biomart_df.R"))
 
 #' Filter PWMs and return commands that when run in command line will convert
 #' PWM.txt to PWM.meme.
