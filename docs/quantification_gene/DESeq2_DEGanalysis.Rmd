@@ -595,31 +595,49 @@ gprofiler_df %>%
     - recall: this is the proportion of genes in the input list that overlap with the term i.e. overlap.size/term.size
     - relative depth: the term's depth in "local" hierarchy
 - When using `ordered_query = TRUE`, the hypergeometric testing is performed for each possible prefix of the list starting from the first gene and adding next genes one by one. The smallest enrichment P-value is reported for each of the terms along with corresponding gene list length. For different terms this length can vary, especially as the broader terms can be enriched for larger lists only.
-- Other comparisons:
-    - Control vs DLB
-        - Downregulated
-            - GO terms related to cilium, cell projection, cilium assembly
-            - KEGG terms related to amino acid metabolism
-        - Upregulated
-            - GO terms related to biological processes are very immune response oriented (e.g. “response to stimulus”, “regulation of immune response”), but also see locomotion terms, adhesion terms, terms related to blood vessel development and finally, to muscle contraction  
-            - KEGG highlights leukocyte transendothelial migration, adhesion terms, muscle contraction
-            - REACTOME terms relate to immune processes (including TLR4 cascade), muscle contraction, ECM organisation,
-    - Control vs PD
-        - Downregulated
-            - GO terms related to phagosome & MHC class II antigen presentation
-        - Upregulated
-            - Terms relating to ion channels
-    - Control vs PDD
-        - Upregulated
-            - GO BP terms relate to immune response and immune-related migration
-            - REACTOME also highlights immune related terms (“innate immune system”)
-    - PDD vs DLB
-        - Upregulated
-            - GO BP, GO CC and REACTOME terms relate to muscle systems? (“muscle contraction”, “muscle tissue development”, “regulation of muscle contraction”, “contractile fiber”, “sarcomere”)
-    - PD vs DLB
-        - Upregulated
-            - Terms relating to immune processes and muscle cell differentiation
-            
+
+```{r, fig.height = 8, fig.cap = "Functional enrichment of differentially expressed genes dervied from pairwise comparisons. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the pathway. Fill of dot indicates −log10(gSCS-corrected p-value). Only the top 5 most significant GO terms (gSCS-corrected p < 0.05) are displayed."}
+
+gprofiler_df_top5 <- 
+  gprofiler_df %>%
+  dplyr::filter(term_size <= 2000, term_size >= 20) %>%
+  dplyr::group_by(comparison, direction_of_effect) %>%
+  dplyr::top_n(n = 5, wt = -p_value) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    comparison =
+      fct_relevel(
+        comparison,
+        c("Control_vs_PD", "Control_vs_PDD", "Control_vs_DLB",
+          "PD_vs_DLB", "PDD_vs_DLB", "PD_vs_PDD")
+      )
+  )
+
+gprofiler_df_top5 %>% 
+  ggplot(aes(
+    x = comparison,
+    y = fct_relevel(
+      term_name,
+      gprofiler_df_top5 %>%
+        dplyr::arrange(desc(comparison), direction_of_effect, desc(term_name)) %>%
+        .[["term_name"]] %>% 
+        unique()
+    ),
+    size = precision,
+    colour = -log10(p_value)
+  )) +
+  geom_point() +
+  geom_point(shape = 1, colour = "black") +
+  labs(x = "Comparison", y = "") +
+  facet_grid(rows = vars(direction_of_effect), scales = "free_y", space = "free_y") +
+  scale_colour_viridis_c(name = "-log10(p-value)", option = "cividis") +
+  theme_rhr +
+  theme(
+    legend.position = "right",
+    legend.key.size = unit(0.35, "cm")
+  )
+```
+
 ## Overlap with PD genes
 - Mendelian PD:
     - Predicted mendelian genes as reported by Genomics England (i.e. green genes)
@@ -733,7 +751,7 @@ sig_res_LRT <- res_LRT %>%
 
 - We can use the `degPatterns` function from the 'DEGreport' package to determine sets of genes that exhibit similar expression patterns across sample groups. The `degPatterns` tool uses a hierarchical clustering approach based on pair-wise correlations, then cuts the hierarchical tree to generate groups of genes with similar expression profiles. The tool cuts the tree in a way to optimize the diversity of the clusters, such that the variability inter-cluster > the variability intra-cluster.
 
-```{r gene-clusters, class.source='fold-show',fig.height=8}
+```{r gene-clusters, class.source='fold-show',fig.height=8, fig.cap = "Differentially expressed genes clustered by the correlation of mean gene expression across disease groups. Mean expression of each gene was scaled across all disease groups to create a z-score of gene expression. Lighter lines indicate the trajectory of each individual gene across disease groups, while the thicker line indicates the fitted trajectory of all genes within a disease group across disease groups. Only gene clusters with ≥ 15 genes are displayed."}
 
 # Identify gene clusters exhibiting particular patterns across samples, using the `degPatterns` function from the 'DEGreport' package to show gene clusters across disease groups
 vsd <- DESeq2::vst(dds_LRT, blind = FALSE)
@@ -809,10 +827,42 @@ gprofiler_clusters_results %>%
 
 ```
 
+```{r, fig.cap = "Functional enrichment within gene clusters. Size of dot indicates precision, which is the proportion of genes in the input list that are annotated to the pathway. Fill of dot indicates −log10(gSCS-corrected p-value). Only the top 10 most significant GO terms (gSCS-corrected p < 0.05) are displayed."}
+
+gprofiler_clusters_results_top10 <- 
+  gprofiler_clusters_results %>%
+  qdapTools::list_df2df(col1 = "cluster") %>%
+  dplyr::filter(term_size <= 2000, term_size >= 20) %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::top_n(n = 10, wt = -p_value) 
+
+gprofiler_clusters_results_top10 %>% 
+  ggplot(aes(
+    x = cluster,
+    y = fct_relevel(
+      term_name,
+      gprofiler_clusters_results_top10 %>%
+        dplyr::arrange(desc(cluster), desc(term_name)) %>%
+        .[["term_name"]]
+    ),
+    size = precision,
+    colour = -log10(p_value)
+  )) +
+  geom_point() +
+  geom_point(shape = 1, colour = "black") +
+  labs(x = "Cluster", y = "") +
+  scale_colour_viridis_c(name = "-log10(p-value)", option = "cividis") +
+  theme_rhr +
+  theme(
+    legend.position = "right",
+    legend.key.size = unit(0.35, "cm")
+  )
+```
+
 - Cluster 1: mostly immune-related terms and cell motility
 - Cluster 2: apoptosis
 - Cluster 3: muscle-related terms
-- Cluster 4: glycan biosynthesis?
+- Cluster 4: glycan biosynthesis
 - Cluster 5: immune terms
 
 # Differential expression accounting for PC axes 1-4
@@ -1068,6 +1118,10 @@ res_LRT <- results(dds_LRT)
 sig_res_LRT <- res_LRT %>%
   as_tibble(rownames = "gene") %>% 
   dplyr::filter(padj < 0.05)
+
+```
+
+```{r, fig.cap = "Differentially expressed genes clustered by the correlation of mean gene expression across disease groups. Mean expression of each gene was scaled across all disease groups to create a z-score of gene expression. Lighter lines indicate the trajectory of each individual gene across disease groups, while the thicker line indicates the fitted trajectory of all genes within a disease group across disease groups. Only gene clusters with ≥ 15 genes are displayed."}
 
 # Identify gene clusters exhibiting particular patterns across samples, using the `degPatterns` function from the 'DEGreport' package to show gene clusters across disease groups
 vsd <- DESeq2::vst(dds_LRT, blind = FALSE)
