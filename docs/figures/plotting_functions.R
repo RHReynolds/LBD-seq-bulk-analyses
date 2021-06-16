@@ -12,19 +12,20 @@ plot_sample_info <- function(sample_info){
   # Create named list with correct column names
   measures <- 
     c("Sex (count)", "Age of onset (years)", "Age of death (years)", "Disease duration (years)", "Post-mortem interval (hours)", "Braak alpha-syn staging (count)", 
-      "Braak neuritic tau stage (count)", "Thal Abeta phase estimate (count)", "Alafuzoff alpha-syn staging in ACG (count)", "CSF pH", "Brain weight (g)", "RIN", "Sent to bulk-tissue RNA-seq (count)") %>% 
+      "Braak neuritic tau stage (count)", "Thal Abeta phase estimate (count)", "Alafuzoff alpha-syn staging in ACG (count)", "LP consensus criteria staging (count)",
+      "CSF pH", "Brain weight (g)", "RIN", "Sent to bulk-tissue RNA-seq (count)") %>% 
     str_wrap(., width = 25)
-  names(measures) <- c("Sex", "AoO", "AoD", "DD", "PMI", "aSN", "TAU", "thal AB", "aCG aSN score", "CSF_pH", "brain_weight_(g)", "RIN", "sent_to_bulk_seq")
+  names(measures) <- c("Sex", "AoO", "AoD", "DD", "PMI", "aSN", "TAU", "thal AB", "aCG aSN score", "lpc_category", "CSF_pH", "brain_weight_(g)", "RIN", "sent_to_bulk_seq")
   
   # Split into numeric and categorical data
   numeric_data <- 
     sample_info %>% 
-    dplyr::select(-Sex, -ng_per_ul, -ng, -sent_to_bulk_seq, -aSN, -TAU, -`thal AB`, -`aCG aSN score`) %>% 
+    dplyr::select(-Sex, -ng_per_ul, -ng, -sent_to_bulk_seq, -aSN, -TAU, -`thal AB`, -`aCG aSN score`, -starts_with("lpc")) %>% 
     tidyr::gather(key = sample_characteristic, value = value, -sample_id, -Disease_Group)
   
   categorical_data <- 
     sample_info %>% 
-    dplyr::select(sample_id, Disease_Group, aSN, TAU, `thal AB`, `aCG aSN score`, Sex, sent_to_bulk_seq) %>% 
+    dplyr::select(sample_id, Disease_Group, aSN, TAU, `thal AB`, `aCG aSN score`, lpc_category, Sex, sent_to_bulk_seq) %>% 
     tidyr::gather(key = sample_characteristic, value = value, -sample_id, -Disease_Group)
   
   # Plot of numerical values
@@ -63,11 +64,11 @@ plot_sample_info <- function(sample_info){
         ggplot(aes(x = Disease_Group,
                    # y = ..prop..,
                    fill = fct_rev(value))) + 
-        geom_bar() +
+        geom_bar(colour = "black") +
         facet_wrap(vars(sample_characteristic),
                    scales = "free_y", labeller = labeller(sample_characteristic = measures)) +
         labs(x = "", y = "", legend = "") +
-        scale_fill_grey() +
+        scale_fill_grey(na.value = "white") +
         theme_rhr +
         theme(axis.text.x = element_blank(),
               axis.ticks.x = element_blank(),
@@ -84,11 +85,11 @@ plot_sample_info <- function(sample_info){
         ggplot(aes(x = Disease_Group,
                    # y = ..prop..,
                    fill = fct_rev(value))) + 
-        geom_bar() +
+        geom_bar(colour = "black") +
         facet_wrap(vars(sample_characteristic),
                    scales = "free_y", labeller = labeller(sample_characteristic = measures)) +
         labs(x = "", y = "", legend = "") +
-        scale_fill_grey() +
+        scale_fill_grey(na.value = "white") +
         theme_rhr +
         theme(legend.position = "right",
               legend.title = element_blank(),
@@ -135,7 +136,7 @@ plot_sample_info <- function(sample_info){
   stable <- 
     kw_test %>% 
     dplyr::bind_rows(chisq_test) %>% 
-    dplyr::mutate(sample_characteristic = str_wrap(sample_characteristic, width = 20),
+    dplyr::mutate(sample_characteristic = str_wrap(sample_characteristic, width = 25),
                   p.value = round(p.value, digits = 5),
                   method = case_when(method == "Kruskal-Wallis rank sum test" ~ "Kruskal-Wallis test",
                                      method == "Pearson's Chi-squared test" ~ "Chi-squared test")) %>% 
@@ -158,8 +159,7 @@ plot_sample_info <- function(sample_info){
                       widths = c(1.25,1)),
             categorical_plot,
             nrow = 2,
-            labels = c("", "b"),
-            heights = c(1.33, 1))
+            labels = c("", "b"))
   
   
   

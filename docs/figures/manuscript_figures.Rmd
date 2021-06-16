@@ -25,6 +25,7 @@ library(forcats) # For factor reordering
 library(ggpubr) # For arranging plots in one panel
 library(ggmosaic) # For contingency plot
 library(ggh4x) # For customised ggplot2 facets
+library(janitor) # To clean column names
 library(readxl) # For loading excel workbooks
 library(rutils) # For go_reduce()
 library(tidyverse) # For data manipulation
@@ -89,14 +90,29 @@ sample_info <-
     skip = 1
   )
 
+# Load LP consensus staging
+lp_consensus <-
+  read_excel(
+    path = file.path(path_to_raw_data, "sample_details/20210613_acta_case_regrading.xlsx"), 
+    na =  c("n/a")
+  ) %>% 
+  janitor::clean_names() %>% 
+  dplyr::select(-x2) %>% 
+  dplyr::rename_with(.fn = ~str_c("lpc_", .x)) %>% 
+  dplyr::filter(!is.na(lpc_case_no))
+
 sample_info <-
   sample_info %>%
   dplyr::filter(sent_to_bulk_seq == "yes" | CaseNo %in% c("C036", "C048", "PD060", "PD501")) %>%
   dplyr::filter(Sample_Type %in% c("Tissue section", NA)) %>%
+  dplyr::left_join(
+    lp_consensus,
+    by = c("CaseNo" = "lpc_case_no")
+  ) %>% 
   dplyr::select(
     sample_id = CaseNo, 
     Disease_Group, Sex, AoO, AoD, DD, PMI, aSN, TAU, 
-    `thal AB`, `aCG aSN score`, CSF_pH, `brain_weight_(g)`, 
+    `thal AB`, `aCG aSN score`, starts_with("lpc"), CSF_pH, `brain_weight_(g)`, 
     RIN = RINe_bulkRNA_Tapestation, 
     ng_per_ul = `ng/ul_bulkRNA_Tapestation`, 
     ng = ng_bulkRNA_Tapestation, 
@@ -110,7 +126,7 @@ sample_info <-
       is.na(sent_to_bulk_seq) ~ "no",
       TRUE ~ sent_to_bulk_seq
     )
-  )
+  ) 
 
 sample_info %>%
   DT::datatable(
@@ -156,7 +172,7 @@ ggsave(
   device = "png",
   path = path_for_figures,
   width = 175,
-  height = 175,
+  height = 210,
   units = "mm",
   dpi = 300,
   limitsize = TRUE
@@ -384,7 +400,7 @@ ggsave(
 
 write_csv(
   supp_table,
-  path = file.path(path_for_tables, "/", "sample_info_bulk_seq_metrics.csv"),
+  file = file.path(path_for_tables, "/", "sample_info_bulk_seq_metrics.csv"),
   na = ""
 )
 ```
@@ -811,7 +827,7 @@ ggsave(
   device = "png",
   path = path_for_figures,
   width = 150,
-  height = 120,
+  height = 200,
   units = "mm",
   dpi = 300,
   limitsize = TRUE
