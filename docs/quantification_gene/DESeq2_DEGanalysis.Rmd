@@ -1154,7 +1154,7 @@ clusters_df %>%
 
 ```
 
-## Gprofiler of clusters
+## Pathway enrichment analysis of clusters
 ```{r}
 
 gprofiler_cluster <- clusters_df %>%
