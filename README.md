@@ -10,7 +10,7 @@ Analyses were shared between two groups, thus code herein relates to:
 -   Generate of sLDSC outputs
 -   Generation of manuscript figures
 
-Code used to process and analyse single-nucleus RNA-sequencing data and to generate H-MAGMA outputs is available at: <https://github.com/johnsonlab-ic/LBD-seq-singlenuc-analyses>.
+Code used to process and analyse single-nucleus RNA-sequencing data and to generate H-MAGMA outputs is available at: <https://github.com/rahfel/snRNAseqProcessingSteps>.
 
 # Citation
 
