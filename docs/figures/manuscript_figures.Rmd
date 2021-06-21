@@ -61,7 +61,7 @@ fct_disease <- c("Control vs PD", "Control vs PDD", "Control vs DLB", "PD vs PDD
 # File paths
 source(here::here("R", "file_paths.R"))
 
-path_for_figures <- file.path(path_to_wd, "paper_draft/figures")
+path_for_figures <- file.path(path_to_wd, "paper_draft/figures/tiff")
 path_for_tables <- file.path(path_to_wd, "paper_draft/tables")
 ```
 
@@ -167,14 +167,14 @@ supp_fig
 ```{r save-sample-demographics, eval = F}
 
 ggsave(
-  "suppfigure_sample_info.png",
+  "suppfigure_sample_info.tiff",
   supp_fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 175,
   height = 210,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 ```
@@ -258,14 +258,14 @@ supp_fig
 ```{r save-snrna metrics, eval = F}
 
 ggsave(
-  "suppfigure_snrna_seq_metrics.png",
+  "suppfigure_snrna_seq_metrics.tiff",
   supp_fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 190,
   height = 210,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -387,14 +387,14 @@ supp_table <-
 ```{r save-bulk-seq-metrics, eval = F}
 
 ggsave(
-  "suppfigure_bulk_rnaseq_metrics.png",
+  "suppfigure_bulk_rnaseq_metrics.tiff",
   supp_fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 200,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -798,38 +798,38 @@ supp_table_1[[1]] <-
 ## Export files
 ```{r save-deconvolution, eval = F}
 ggsave(
-  "figure_cellular_diversity.png",
+  "figure_cellular_diversity.tiff",
   fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 130,
   height = 160,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_cellular_diversity_correlations.png",
+  "suppfigure_cellular_diversity_correlations.tiff",
   supp_fig_1,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 180,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_cellular_diversity_validation.png",
+  "suppfigure_cellular_diversity_validation.tiff",
   supp_fig_2,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 200,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -1465,38 +1465,38 @@ supp_table_2[[1]] <-
 ```{r save-snrna-deg, eval = F}
 
 ggsave(
-  "figure_snRNA_DEG_general.png",
+  "figure_snRNA_DEG_general.tiff",
   fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 180,
   units = "mm",
-  dpi = 400,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_general_disease.png",
+  "suppfigure_snRNA_DEG_general_disease.tiff",
   supp_fig_1,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 180,
   units = "mm",
-  dpi = 400,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_general_pathways.png",
+  "suppfigure_snRNA_DEG_general_pathways.tiff",
   supp_fig_2,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 100,
   units = "mm",
-  dpi = 400,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -1938,38 +1938,38 @@ supp_table[[1]] <-
 ```{r save-snrna-pd-specific, eval = F}
 
 ggsave(
-  "figure_snRNA_DEG_PD_specific.png",
+  "figure_snRNA_DEG_PD_specific.tiff",
   fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 210,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_PD_specific_SNCA.png",
+  "suppfigure_snRNA_DEG_PD_specific_SNCA.tiff",
   supp_fig_1,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 140,
   height = 160,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_PD_specific.png",
+  "suppfigure_snRNA_DEG_PD_specific.tiff",
   supp_fig_2,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 170,
   height = 170,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -2028,46 +2028,6 @@ dir.create(output_dir)
 saveRDS(pc_pathways_list, file.path(output_dir, "clusterProfiler_PC1_PCcorrected.Rds"))
 ```
 
-```{r pca-pathway-analysis-webgestaltr, eval = F, echo = F}
-
-n_genes <- 100
-
-res_var <- factoextra::get_pca_var(list_vsd_corrected[[3]])
-
-pc_top_genes <-
-  res_var$contrib %>%
-  as_tibble(rownames = "ensembl_id") %>%
-  dplyr::select(ensembl_id, PC1 = Dim.1) %>%
-  dplyr::top_n(n = n_genes, wt = PC1)
-
-all_genes <- res_var$contrib %>% rownames()
-
-output_dir <- file.path(path_to_results, "Salmon_quant", "bulk_tissue", "webgestaltr")
-dir.create(output_dir)
-
-WebGestaltR(
-  enrichMethod = "ORA",
-  organism = "hsapiens",
-  enrichDatabase = c("geneontology_Biological_Process", 
-                     "geneontology_Cellular_Component", 
-                     "geneontology_Molecular_Function"),
-  interestGene = pc_top_genes$ensembl_id,
-  interestGeneType = "ensembl_gene_id",
-  referenceGene = all_genes,
-  referenceGeneType = "ensembl_gene_id",
-  minNum = 10,
-  maxNum = 500,
-  sigMethod = "fdr",
-  fdrMethod = "BH",
-  fdrThr = 0.05,
-  reportNum = 20,
-  isOutput = TRUE,
-  outputDirectory = output_dir,
-  projectName = "PC1_PCcorrected",
-)
-
-```
-
 ```{r load-bulk-deg}
 
 list_vsd_corrected <- readRDS(here::here("docs", "figures", "list_vsd_correction_strategies.Rds"))
@@ -2105,49 +2065,6 @@ bulk_deg <-
     sample_info = colData(filter_dds), 
     group_column_name = "Disease_Group"
     )
-```
-
-```{r load-pca-webgestaltr, eval = F, echo = F}
-
-pc_pathways <-
-  list.files(file.path(path_to_results, "Salmon_quant/", "bulk_tissue/", "webgestaltr"),
-             pattern = "enrichment_results",
-             recursive = T,
-             full.names = T
-  ) %>% 
-  read_delim(delim = "\t") %>%
-  as_tibble() %>%
-  # Tidy tibble
-  dplyr::mutate(
-    description = description %>% str_to_sentence(),
-    go_type = 
-      case_when(str_detect(database, "Biological_Process") ~ "BP",
-                str_detect(database, "Cellular_Component") ~ "CC",
-                str_detect(database, "Molecular_Function") ~ "MF",
-                TRUE ~ database)
-  ) %>%
-  dplyr::rename(go_id = geneSet) %>% 
-  dplyr::select(everything(), -overlapId, -database) %>% 
-  # Filter for pathway size
-  dplyr::filter(
-    size >= 20, size <= 2000
-  ) 
-  
-pc_pathways %>% 
-  ggplot(
-    aes(
-      x = enrichmentRatio,
-      y = description %>% 
-        str_wrap(width = 25) %>% 
-        fct_reorder(.f = ., 
-                    .x = enrichmentRatio, 
-                    .fun = max)
-    )
-  ) +
-  geom_col() +
-  labs(x = "Enrichment ratio", y = "GO Term") +
-  theme_rhr +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
 ```
 
 ## Numbers quoted in text
@@ -2336,14 +2253,14 @@ supp_table_2[[1]] <-
 ```{r save-bulk-deg, eval = F}
 
 ggsave(
-  "suppfigure_pca_correction_strategies.png",
+  "suppfigure_pca_correction_strategies.tiff",
   supp_fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 140,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
@@ -2484,98 +2401,6 @@ leafcutter_list <-
 intron_list <- readRDS(here::here("docs", "figures", "intron_list.Rds"))
 ```
 
-```{r load-bulk-ds-webgestaltr, eval = F, echo = F}
-
-# File paths
-pathway_files <-
-  setNames(
-    object = list(
-      list.files(file.path(path_to_results, "leafcutter/webgestaltr/own_data/"),
-                 pattern = "enrichment_results",
-                 recursive = T,
-                 full.names = T
-      ),
-      list.files(file.path(path_to_results, "leafcutter/webgestaltr/validation/"),
-                 pattern = "enrichment_results",
-                 recursive = T,
-                 full.names = T
-      )
-    ),
-    nm = c("Own", "recount2: SRP058181")
-  )
-  
-# Load across multiple workbooks and sheets
-pathway_list <-
-  pathway_files %>% 
-  lapply(., function(list){
-    setNames(
-      object = list %>%
-        lapply(., function(file) {
-          file %>%
-            read_delim(delim = "\t")
-        }),
-      nm = list %>%
-        str_remove(".*/") %>%
-        str_remove("enrichment_results_") %>%
-        str_remove(".txt")
-    )
-  })
-
-
-# Create dataframe of pathways
-ds_pathway_df <-
-  pathway_list %>%
-  lapply(., function(list){
-    
-    list %>% 
-      qdapTools::list_df2df(col1 = "comparison") %>%
-      as_tibble() %>%
-      # Tidy tibble
-      dplyr::mutate(
-        description = description %>% str_to_sentence(),
-        go_type = 
-          case_when(str_detect(database, "Biological_Process") ~ "BP",
-                    str_detect(database, "Cellular_Component") ~ "CC",
-                    str_detect(database, "Molecular_Function") ~ "MF",
-                    TRUE ~ database)
-      ) %>%
-      dplyr::rename(go_id = geneSet) %>% 
-      dplyr::select(comparison, everything(), -overlapId, -database)
-    
-  })%>% 
-  qdapTools::list_df2df(col1 = "dataset") %>% 
-  # Filter for pathway size
-  dplyr::filter(
-    size >= 20, size <= 2000
-  ) 
-
-bulk_webgestalt_reduced <-
-  ds_pathway_df %>%
-  dplyr::filter(
-    dataset == "Own" & FDR < 0.05 |
-      dataset == "recount2: SRP058181" & pValue < 0.01
-  ) %>% 
-  rutils::go_reduce(.,
-    threshold = 0.9
-  )
-
-bulk_webgestalt_reduced %>% 
-  dplyr::filter(dataset == "Own") %>% 
-  rutils::go_plot(
-    col_gene_list = "comparison",
-    col_fdr = "FDR"
-  )
-
-bulk_webgestalt_reduced %>% 
-  dplyr::filter(str_detect(dataset, "recount")) %>% 
-  rutils::go_plot(
-    col_gene_list = "comparison",
-    col_fdr = "pValue"
-  ) +
-  theme_rhr
-
-```
-
 For pathway summary figure, need to combine all pathway files into one list.
 
 ```{r load-data-pathway-summary}
@@ -2617,51 +2442,6 @@ pathway_summary <-
       as_tibble()
     
   })
-
-```
-
-```{r load-data-pathway-summary-webgestaltr, eval = F, echo = F}
-# Using webgestalt dataframes
-pathway_summary <-
-  setNames(
-    object =
-      list(
-        snrna_pathway_df %>%
-          # Remove pathways found enriched in up- and down-regulated gene sets from same cell type
-          dplyr::group_by(comparison, class, go_id) %>%
-          dplyr::filter(n() < 2) %>%
-          # Collapse across up and down-reg genes
-          dplyr::distinct(comparison, class, go_type, go_id, description),
-        pc_pathways %>%
-          dplyr::mutate(
-            comparison = "PC1",
-            class = NA
-          ),
-        ds_pathway_df %>%
-          dplyr::filter(
-            # dataset == "Own" & FDR < 0.05 |
-            #   dataset == "recount2: SRP058181" & pValue < 0.01
-            FDR < 0.1
-          ) %>%
-          # Collapse across own/validated dataset
-          dplyr::distinct(comparison, go_type, go_id, description) %>% 
-          dplyr::mutate(
-            class = NA
-          )
-      ),
-    nm = c("snrna_deg", "bulk_pc", "bulk_ds")
-  ) %>% 
-  # Standardise across dataframes
-  lapply(., function(df){
-    
-    df %>% 
-      dplyr::mutate(
-        description = str_to_lower(description)
-      ) %>% 
-      dplyr::distinct(comparison, class, go_type, go_id, description) %>% 
-      as_tibble()
-    
-  }) 
 
 ```
 
@@ -3323,62 +3103,62 @@ openxlsx::write.xlsx(supp_table_3,
 
 
 ggsave(
-  "figure_differential_splicing.png",
+  "figure_differential_splicing.tiff",
   fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 60,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_differential_splicing.png",
+  "suppfigure_differential_splicing.tiff",
   supp_fig_1,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 150,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_differential_splicing_cont_table.png",
+  "suppfigure_differential_splicing_cont_table.tiff",
   supp_fig_2,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 80,
   height = 80,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_differential_splicing_validation.png",
+  "suppfigure_differential_splicing_validation.tiff",
   supp_fig_3,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 170,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_differential_splicing_gtex.png",
+  "suppfigure_differential_splicing_gtex.tiff",
   supp_fig_4,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 150,
   height = 210,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 ```
@@ -3870,26 +3650,26 @@ openxlsx::write.xlsx(
 )
 
 ggsave(
-  "figure_ldsc_hmagma.png",
+  "figure_ldsc_hmagma.tiff",
   fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 130,
   height = 120,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 
 ggsave(
-  "suppfigure_ldsc_hmagma.png",
+  "suppfigure_ldsc_hmagma.tiff",
   supp_fig,
-  device = "png",
+  device = "tiff",
   path = path_for_figures,
   width = 130,
   height = 120,
   units = "mm",
-  dpi = 300,
+  dpi = 600,
   limitsize = TRUE
 )
 ```

@@ -2272,11 +2272,11 @@ plot_pathway_summary_heatmap <-
           )
       )
     
-    png(file.path(output_dir, str_c(output_name, ".png")),
+    tiff(file.path(output_dir, str_c(output_name, ".tiff")),
         width = figure_width,
         height = figure_height,
         units = "mm",
-        res = 300
+        res = 600
     )
     draw(ht, merge_legend = T)
     dev.off()
