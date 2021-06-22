@@ -61,7 +61,7 @@ fct_disease <- c("Control vs PD", "Control vs PDD", "Control vs DLB", "PD vs PDD
 # File paths
 source(here::here("R", "file_paths.R"))
 
-path_for_figures <- file.path(path_to_wd, "paper_draft/figures/tiff")
+path_for_figures <- file.path(path_to_wd, "paper_draft/figures")
 path_for_tables <- file.path(path_to_wd, "paper_draft/tables")
 ```
 
@@ -167,9 +167,9 @@ supp_fig
 ```{r save-sample-demographics, eval = F}
 
 ggsave(
-  "suppfigure_sample_info.tiff",
+  "suppfigure_sample_info.png",
   supp_fig,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 175,
   height = 210,
@@ -258,9 +258,9 @@ supp_fig
 ```{r save-snrna metrics, eval = F}
 
 ggsave(
-  "suppfigure_snrna_seq_metrics.tiff",
+  "suppfigure_snrna_seq_metrics.png",
   supp_fig,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 190,
   height = 210,
@@ -387,9 +387,9 @@ supp_table <-
 ```{r save-bulk-seq-metrics, eval = F}
 
 ggsave(
-  "suppfigure_bulk_rnaseq_metrics.tiff",
+  "suppfigure_bulk_rnaseq_metrics.png",
   supp_fig,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 200,
@@ -810,9 +810,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_cellular_diversity_correlations.tiff",
+  "suppfigure_cellular_diversity_correlations.png",
   supp_fig_1,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 180,
@@ -822,9 +822,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_cellular_diversity_validation.tiff",
+  "suppfigure_cellular_diversity_validation.png",
   supp_fig_2,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 200,
@@ -1477,9 +1477,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_general_disease.tiff",
+  "suppfigure_snRNA_DEG_general_disease.png",
   supp_fig_1,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 180,
@@ -1489,9 +1489,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_general_pathways.tiff",
+  "suppfigure_snRNA_DEG_general_pathways.png",
   supp_fig_2,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 100,
@@ -1950,9 +1950,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_PD_specific_SNCA.tiff",
+  "suppfigure_snRNA_DEG_PD_specific_SNCA.png",
   supp_fig_1,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 140,
   height = 160,
@@ -1962,9 +1962,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_snRNA_DEG_PD_specific.tiff",
+  "suppfigure_snRNA_DEG_PD_specific.png",
   supp_fig_2,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 170,
   height = 170,
@@ -2253,9 +2253,9 @@ supp_table_2[[1]] <-
 ```{r save-bulk-deg, eval = F}
 
 ggsave(
-  "suppfigure_pca_correction_strategies.tiff",
+  "suppfigure_pca_correction_strategies.png",
   supp_fig,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 140,
@@ -3115,9 +3115,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_differential_splicing.tiff",
+  "suppfigure_differential_splicing.png",
   supp_fig_1,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 150,
@@ -3127,9 +3127,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_differential_splicing_cont_table.tiff",
+  "suppfigure_differential_splicing_cont_table.png",
   supp_fig_2,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 80,
   height = 80,
@@ -3139,9 +3139,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_differential_splicing_validation.tiff",
+  "suppfigure_differential_splicing_validation.png",
   supp_fig_3,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 170,
@@ -3151,9 +3151,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_differential_splicing_gtex.tiff",
+  "suppfigure_differential_splicing_gtex.png",
   supp_fig_4,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 150,
   height = 210,
@@ -3662,9 +3662,9 @@ ggsave(
 )
 
 ggsave(
-  "suppfigure_ldsc_hmagma.tiff",
+  "suppfigure_ldsc_hmagma.png",
   supp_fig,
-  device = "tiff",
+  device = "png",
   path = path_for_figures,
   width = 130,
   height = 120,
