@@ -20,7 +20,7 @@ This repository contains analysis code for the publication found [here](https://
 Analyses were shared between two groups, thus code herein relates to:
 
 - Processing and analysis bulk-tissue RNA-sequencing data
-- Generate of sLDSC outputs
+- Generation of sLDSC outputs
 - Generation of manuscript figures
 
 Code used to process and analyse single-nucleus RNA-sequencing data and to generate H-MAGMA outputs is available at: https://github.com/rahfel/snRNAseqProcessingSteps. 
