@@ -17,7 +17,7 @@ create_rse_jx <- function(sj_df, sample_info, sample_id_col){
   
   library(tidyverse)
   library(stringr)
-  devtools::load_all("/home/rreynolds/packages/dasper/")
+  # devtools::load_all("/home/rreynolds/packages/dasper/")
   
   sample_id <- enquo(sample_id_col)
   
@@ -39,6 +39,7 @@ create_rse_jx <- function(sj_df, sample_info, sample_id_col){
                                             seqnames.field = "chr",
                                             strand.field = "strand",
                                             keep.extra.columns = TRUE) %>% 
+    # Function has since been deprecated: https://github.com/dzhang32/dasper/blob/master/R/deprecated.R
     dasper::annotate_junc_ref(junc_metadata = .,
                                 gtf = "/data/references/ensembl/gtf_gff3/v97/Homo_sapiens.GRCh38.97.gtf")
   
