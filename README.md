@@ -14,7 +14,7 @@ Code used to process and analyse single-nucleus RNA-sequencing data and to gener
 
 # Citation
 
-If you use any of the code or data from this repository, please cite our [paper](https://www.biorxiv.org/content/10.1101/2021.04.22.440800v1).
+If you use any of the code or data from this repository, please cite our [paper](https://pubmed.ncbi.nlm.nih.gov/34309761/).
 
 # License
 
