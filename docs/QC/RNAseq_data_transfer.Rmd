@@ -44,10 +44,10 @@ source(here::here("R", "file_paths.R"))
 
 ```{bash data transfer arguments, eval = F, echo = T, tidy = T}
 # Nuclear samples
-rsync -avz --progress -e ssh /drives/d/PR0199/ rreynolds@144.82.49.248:/home/rreynolds/data/PD_bulkRNAseq/nuclear_totalRNA_samples/ | tee /home/rhrey/Desktop/20190606_bulkNuc_data_transfer.txt
+rsync -avz --progress -e ssh /drives/d/PR0199/ username@mr_server:/home/rreynolds/data/PD_bulkRNAseq/nuclear_totalRNA_samples/ | tee /home/rhrey/Desktop/20190606_bulkNuc_data_transfer.txt
 
 # Tissue samples 
-rsync -avz --progress -e ssh /drives/d/PR0198/ rreynolds@144.82.49.248:/home/rreynolds/data/PD_bulkRNAseq/tissue_polyA_samples/ | tee /home/rhrey/Desktop/20190606_tissue_data_transfer.txt
+rsync -avz --progress -e ssh /drives/d/PR0198/ username@mr_server:/home/rreynolds/data/PD_bulkRNAseq/tissue_polyA_samples/ | tee /home/rhrey/Desktop/20190606_tissue_data_transfer.txt
 
 ```
 
