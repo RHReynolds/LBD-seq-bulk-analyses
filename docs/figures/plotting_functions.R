@@ -1091,8 +1091,7 @@ plot_deg_fc <- function(DEG_df, fct_levels){
                fill = coef)) +
     geom_tile(colour = "black") +
     # coord_equal() +
-    facet_grid(cols = vars(comparison), scales = "free", space = "free",
-               labeller = labeller(class = setNames(ct_class$class_wrapped, ct_class$class))) +
+    facet_grid(cols = vars(comparison), scales = "free", space = "free") +
     scale_fill_distiller(palette = "RdBu", direction = -1, na.value = "#cccccc", limits = c(-limit, limit)) +
     labs(x = "", y = "Gene", fill = "log"[2]~"(fold change)") +
     theme_rhr +
