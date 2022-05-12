@@ -1076,7 +1076,7 @@ plot_deg_fc <- function(DEG_df, fct_levels){
     dplyr::top_n(n = 1, wt = abs(coef)) %>% 
     .[["coef"]] %>%
     abs() %>% 
-    round()
+    ceiling()
   
   plot <- 
     DEG_df %>% 
