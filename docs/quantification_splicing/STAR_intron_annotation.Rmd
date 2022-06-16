@@ -27,7 +27,7 @@ library(stringr)
 library(readxl)
 library(RNAseqProcessing)
 library(rtracklayer)
-devtools::load_all("/home/rreynolds/packages/dasper/")
+# devtools::load_all("/home/rreynolds/packages/dasper/")
 
 theme_rhr <-  theme_bw(base_family = "Helvetica") + 
   theme(panel.grid.major.x = element_blank(),
@@ -127,7 +127,7 @@ saveRDS(rse_jx,
 - This involves removing junctions that may not be genuine products of spliceosome activity.
 - Filtering removed any junctions that:
     - Map to ENCODE blacklist regions
-    - Form an intron of length < 25 nucleotides. This number is based on theoretical minimum intron length, which in 80% of cases includes (for references refer to Sonia Ruiz' document located locally in the directory: `C:\Users\rhrey\OneDrive - University College London\PhD\Other People's Projects\SoniaRuiz\20200107_Defining_junctions_length.docx`):
+    - Form an intron of length < 25 nucleotides. This number is based on theoretical minimum intron length, which in 80% of cases includes (for references refer to Sonia Ruiz' document located locally in the directory: `.\SoniaRuiz\20200107_Defining_junctions_length.docx`):
         - 6 nt to form the canonical 5' splice signal sequence
         - 2 nt to form the canonical 3' splice signal sequence
         - 5 nt to form the canonical branch point sequence
